@@ -1,0 +1,173 @@
+// The research agent's only door into the database.
+//
+//   GET  ?action=context   → open trades, recent ideas, active holdings, recent briefings
+//   POST ?action=publish   → body is a PublishPayload (see payload.ts)
+//
+// Auth: header `x-desk-token` must equal the DESK_AGENT_TOKEN secret.
+// What it can do is deliberately narrow: insert one briefing, insert its ideas
+// with status 'idea', and refresh holdings.last_price. It never updates or
+// deletes a trade, and nothing here talks to a brokerage.
+//
+// Secrets (supabase secrets set …): DESK_AGENT_TOKEN, and optionally
+// RESEND_API_KEY + NOTIFY_EMAIL for the "briefing ready" email, SITE_URL.
+
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { validatePayload } from "./payload.ts";
+
+const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
+  auth: { persistSession: false },
+});
+
+const SITE_URL = Deno.env.get("SITE_URL") ?? "https://bsimms2.github.io/market-desk/";
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body, null, 2), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+function sameSecret(a: string, b: string): boolean {
+  const x = new TextEncoder().encode(a);
+  const y = new TextEncoder().encode(b);
+  if (x.length !== y.length) return false;
+  let diff = 0;
+  for (let i = 0; i < x.length; i++) diff |= x[i]! ^ y[i]!;
+  return diff === 0;
+}
+
+function nyToday(): string {
+  // en-CA formats as YYYY-MM-DD.
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date());
+}
+
+async function context(): Promise<Response> {
+  const since = new Date(Date.now() - 21 * 86_400_000).toISOString();
+  const [open, recent, holdings, briefings] = await Promise.all([
+    db.from("trades").select("*").eq("status", "open").order("opened_on"),
+    db.from("trades").select("id,created_at,track,ticker,direction,instrument,structure,status,catalyst,invalidation,source_briefing_id")
+      .gte("created_at", since).order("created_at", { ascending: false }),
+    db.from("holdings").select("ticker,name,kind,shares,cost_basis,account,opened_on,thesis,notes,last_price,last_price_on")
+      .eq("active", true).order("ticker"),
+    db.from("briefings").select("id,kind,date,title,summary").order("date", { ascending: false })
+      .order("created_at", { ascending: false }).limit(8),
+  ]);
+  const err = open.error ?? recent.error ?? holdings.error ?? briefings.error;
+  if (err) return json({ error: err.message }, 500);
+  return json({
+    today_new_york: nyToday(),
+    open_trades: open.data,
+    recent_ideas_21d: recent.data,
+    holdings: holdings.data,
+    recent_briefings: briefings.data,
+  });
+}
+
+async function publish(req: Request): Promise<Response> {
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return json({ error: "body must be JSON" }, 400);
+  }
+  const v = validatePayload(body);
+  if (!v.ok) return json({ error: "invalid payload", details: v.errors }, 422);
+  const { briefing, ideas, prices } = v.value;
+
+  // One briefing per kind per date, so a retried run can't double-post.
+  const dup = await db.from("briefings").select("id").eq("kind", briefing.kind).eq("date", briefing.date).maybeSingle();
+  if (dup.error) return json({ error: dup.error.message }, 500);
+  if (dup.data) return json({ error: "already published", briefing_id: dup.data.id }, 409);
+
+  const ins = await db
+    .from("briefings")
+    .insert({
+      kind: briefing.kind,
+      date: briefing.date,
+      title: briefing.title,
+      summary: briefing.summary ?? null,
+      body_md: briefing.body_md,
+      sources: briefing.sources,
+    })
+    .select("id")
+    .single();
+  if (ins.error) return json({ error: ins.error.message }, 500);
+  const briefingId = ins.data.id as string;
+
+  let ideaIds: string[] = [];
+  if (ideas.length) {
+    const rows = ideas.map((i) => ({
+      track: i.track,
+      ticker: i.ticker,
+      direction: i.direction,
+      instrument: i.instrument,
+      structure: i.structure,
+      thesis: i.thesis,
+      catalyst: i.catalyst,
+      catalyst_type: i.catalyst_type ?? null,
+      invalidation: i.invalidation,
+      options_angle: i.options_angle,
+      entry_plan: i.entry_plan,
+      target: i.target,
+      status: "idea",
+      source_briefing_id: briefingId,
+    }));
+    const t = await db.from("trades").insert(rows).select("id");
+    if (t.error) {
+      // Don't leave a briefing that claims ideas it doesn't have.
+      await db.from("briefings").delete().eq("id", briefingId);
+      return json({ error: "ideas failed, briefing rolled back: " + t.error.message }, 500);
+    }
+    ideaIds = t.data.map((r) => r.id as string);
+  }
+
+  let pricesUpdated = 0;
+  for (const p of prices ?? []) {
+    const u = await db
+      .from("holdings")
+      .update({ last_price: p.price, last_price_on: p.on })
+      .eq("ticker", p.ticker)
+      .eq("active", true)
+      .or(`last_price_on.is.null,last_price_on.lte.${p.on}`)
+      .select("id");
+    if (!u.error) pricesUpdated += u.data.length;
+  }
+
+  const notified = await notify(briefing.title, briefing.summary ?? null, briefingId);
+  return json({ briefing_id: briefingId, idea_ids: ideaIds, prices_updated: pricesUpdated, notified });
+}
+
+async function notify(title: string, summary: string | null, id: string): Promise<string> {
+  const key = Deno.env.get("RESEND_API_KEY");
+  const to = Deno.env.get("NOTIFY_EMAIL");
+  if (!key || !to) return "skipped (no RESEND_API_KEY / NOTIFY_EMAIL)";
+  const link = SITE_URL.replace(/\/?$/, "/") + "briefings/" + id;
+  const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+  const r = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      from: Deno.env.get("NOTIFY_FROM") ?? "Market Desk <onboarding@resend.dev>",
+      to: [to],
+      subject: `Briefing ready: ${title}`,
+      html: `<p><strong>${esc(title)}</strong></p>${summary ? `<p>${esc(summary)}</p>` : ""}<p><a href="${link}">Open the briefing</a></p>`,
+      text: `${title}\n\n${summary ?? ""}\n\n${link}`,
+    }),
+  });
+  return r.ok ? "sent" : `failed (${r.status})`;
+}
+
+Deno.serve(async (req) => {
+  const token = Deno.env.get("DESK_AGENT_TOKEN");
+  if (!token) return json({ error: "server not configured" }, 500);
+  if (!sameSecret(req.headers.get("x-desk-token") ?? "", token)) return json({ error: "unauthorized" }, 401);
+
+  const action = new URL(req.url).searchParams.get("action");
+  try {
+    if (req.method === "GET" && action === "context") return await context();
+    if (req.method === "POST" && action === "publish") return await publish(req);
+    return json({ error: "use GET ?action=context or POST ?action=publish" }, 404);
+  } catch (e) {
+    return json({ error: e instanceof Error ? e.message : String(e) }, 500);
+  }
+});

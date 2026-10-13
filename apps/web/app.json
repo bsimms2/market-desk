@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "Market Desk",
+    "slug": "market-desk",
+    "version": "0.1.0",
+    "orientation": "default",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#f4f6f8",
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "name": "Market Desk",
+      "shortName": "Desk",
+      "themeColor": "#1f6f78",
+      "backgroundColor": "#f4f6f8",
+      "display": "standalone"
+    },
+    "experiments": {
+      "baseUrl": "/market-desk"
+    }
+  }
+}

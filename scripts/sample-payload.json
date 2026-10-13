@@ -1,0 +1,26 @@
+{
+  "briefing": {
+    "kind": "swing_morning",
+    "date": "2026-10-14",
+    "title": "TEST — sample briefing (safe to delete)",
+    "summary": "Pipeline test: one swing idea, no real research.",
+    "body_md": "## Overnight\n- This is a **test** briefing from scripts/sample-payload.json.\n\n## Ideas\n1. TEST idea on SPY.\n\n_Research and learning material, not financial advice._",
+    "sources": [{ "title": "Supabase docs", "url": "https://supabase.com/docs" }]
+  },
+  "ideas": [
+    {
+      "track": "swing",
+      "ticker": "SPY",
+      "direction": "long",
+      "instrument": "option",
+      "structure": "TEST Nov 21 580/590 call spread",
+      "thesis": "Test thesis.",
+      "catalyst": "Test catalyst.",
+      "catalyst_type": "macro",
+      "invalidation": "Test: wrong if it closes below 570.",
+      "options_angle": "Test: a debit spread caps cost while IV is elevated.",
+      "entry_plan": "Test entry zone.",
+      "target": "Test target."
+    }
+  ]
+}

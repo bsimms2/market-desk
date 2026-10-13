@@ -1,0 +1,7 @@
+packages:
+  - "packages/*"
+  - "apps/*"
+# React Native / Metro need a flat node_modules — keep the hoisted linker.
+nodeLinker: hoisted
+allowBuilds:
+  esbuild: true
