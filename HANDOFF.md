@@ -55,7 +55,9 @@ bash tools/deploy_function.sh           # deploy agent-api + push secrets from .
 
 ## Status (2026-10-13)
 
-Phase 1 is done, except the check that a scheduled cloud session can reach Supabase, and the
+Phase 1 is done. The cloud network check FAILED: the routine environment "Default" gets a proxy 403
+for `lomsjeahhiyforjnwbtu.supabase.co`. Add that host to the environment's allowed hosts, and add
+`DESK_AGENT_TOKEN` as an environment variable there. Still to do: the
 portfolio load from Brendan's screenshot. One TEST briefing and one TEST SPY idea
 (from `scripts/sample-payload.json`) are in the database. Delete them once he has seen the flow.
 
