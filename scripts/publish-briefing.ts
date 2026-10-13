@@ -1,10 +1,10 @@
 // Publish a briefing and its ideas through the agent-api edge function.
 //   node scripts/publish-briefing.ts path/to/payload.json [--dry-run]
-// Env: DESK_AGENT_TOKEN (required), DESK_API_URL (defaults to the MarketDesk project).
+// Env: DESK_AGENT_TOKEN (locally; in the cloud a network secret adds the header), DESK_API_URL (defaults to the MarketDesk project).
 // Validates locally first so a bad payload fails fast with readable errors.
 import { readFileSync } from "node:fs";
 import { validatePayload } from "../packages/desk/src/payload.ts";
-import { apiUrl, token } from "./desk-env.ts";
+import { apiUrl, authHeaders } from "./desk-env.ts";
 
 const file = process.argv[2];
 const dryRun = process.argv.includes("--dry-run");
@@ -26,7 +26,7 @@ if (dryRun) {
 
 const res = await fetch(apiUrl("publish"), {
   method: "POST",
-  headers: { "content-type": "application/json", "x-desk-token": token() },
+  headers: { "content-type": "application/json", ...authHeaders() },
   body: JSON.stringify(v.value),
 });
 const text = await res.text();

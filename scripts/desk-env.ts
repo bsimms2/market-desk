@@ -4,11 +4,13 @@ export function apiUrl(action: "context" | "publish"): string {
   return (process.env.DESK_API_URL ?? DEFAULT_URL) + "?action=" + action;
 }
 
-export function token(): string {
+/**
+ * Auth header for agent-api. Locally, DESK_AGENT_TOKEN comes from .env.
+ * In the cloud routine environment the token is a "network secret": the egress
+ * proxy adds x-desk-token on the way out and the session never sees it, so we
+ * send no header and let the proxy supply it.
+ */
+export function authHeaders(): Record<string, string> {
   const t = process.env.DESK_AGENT_TOKEN;
-  if (!t) {
-    console.error("DESK_AGENT_TOKEN is not set.");
-    process.exit(2);
-  }
-  return t;
+  return t ? { "x-desk-token": t } : {};
 }
