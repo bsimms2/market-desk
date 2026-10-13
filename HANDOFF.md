@@ -55,9 +55,9 @@ bash tools/deploy_function.sh           # deploy agent-api + push secrets from .
 
 ## Status (2026-10-13)
 
-Phase 1 is done. The cloud network check FAILED: the routine environment "Default" gets a proxy 403
-for `lomsjeahhiyforjnwbtu.supabase.co`. Add that host to the environment's allowed hosts, and add
-`DESK_AGENT_TOKEN` as a network secret (header x-desk-token) there. The portfolio was loaded on
+Phase 1 is done. Cloud network check PASSED (2026-10-13): environment "Default" allows
+`lomsjeahhiyforjnwbtu.supabase.co`, and a network secret injects `x-desk-token` for
+`/functions/v1/agent-api`. Cloud sessions call the API with NO token and get 200. Cloud Node is v22.22. The portfolio was loaded on
 2026-10-13 from his screenshots: 13 holdings, Roth IRA + Brokerage; cash is not stored. One TEST briefing and one TEST SPY idea
 (from `scripts/sample-payload.json`) are in the database. Delete them once he has seen the flow.
 
