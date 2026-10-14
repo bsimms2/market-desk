@@ -3,6 +3,7 @@ import { Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { BRIEFING_LABEL, daysHeld, fmtPct, fmtPrice, TRACK_LABEL, trackStats, type Track } from "@desk/core";
 import { useData } from "../db/data";
+import { ScreenReadout } from "../components/ScreenReadout";
 import { Card, Empty, PressCard, Row, Screen, SectionTitle, Stat } from "../components/ui";
 import { space, useTheme } from "../theme";
 
@@ -16,6 +17,7 @@ export function TodayScreen() {
 
   return (
     <Screen>
+      <ScreenReadout />
       <SectionTitle>Latest briefing</SectionTitle>
       {latest ? (
         <Card>
