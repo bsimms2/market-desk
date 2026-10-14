@@ -78,18 +78,32 @@ or Brokerage) and, when he's written one, his own `thesis` ("why I own it").
    find what's moving each holding and the market. Cite the item's `url` and name its `source`.
    Headlines are leads, not proof: confirm a number with `quotes.ts` or a page you can open
    before you state it.
-5. **Research** the story further with web searches and page fetches (see your task prompt). Prefer primary and reputable
-   sources: company IR and filings, the BLS, the BEA, the Fed, Reuters, AP, CNBC, MarketWatch,
-   Yahoo Finance, Nasdaq, exchange sites. Keep the URL of everything you rely on.
-6. **Write** the payload JSON to `/tmp/payload.json` (format below).
-7. **Check** with `node scripts/publish-briefing.ts /tmp/payload.json --dry-run`. Fix anything it
+5. **Official data and calendars.** These scripts need `DESK_CONTACT_EMAIL`, which the message
+   that started this run sets. Run `export` with it first.
+   - `node scripts/econ.ts`: the latest BLS numbers. CPI and core CPI (m/m and y/y), PPI,
+     unemployment, payrolls and wages. Use these for any "the last report showed…" statement.
+   - `node scripts/filings.ts --holdings /tmp/context.json <idea tickers>`: SEC filings in the
+     last 14 days. 8-Ks are labelled by what they mean (e.g. "2.02 earnings results", "5.02
+     executive/director change"), along with 10-Qs and 10-Ks, and a count of insider Form 4
+     filings. Mention anything material for a holding, with its link.
+   - `node scripts/finnhub.ts --holdings /tmp/context.json <idea tickers>`: the next earnings date
+     with before/after the open and EPS/revenue estimates, analyst rating counts and how they
+     changed, and company news. Prefer its earnings dates over aggregator sites.
+
+   If one of these errors, carry on with the others and note the gap in the briefing.
+6. **Research** the story further with web searches and page fetches (see your task prompt).
+   Prefer primary and reputable sources: company IR and filings, the BLS, the BEA, the Fed,
+   Reuters, AP, CNBC, MarketWatch, Yahoo Finance, Nasdaq, exchange sites. Keep the URL of
+   everything you rely on.
+7. **Write** the payload JSON to `/tmp/payload.json` (format below).
+8. **Check** with `node scripts/publish-briefing.ts /tmp/payload.json --dry-run`. Fix anything it
    reports, then run it again.
-8. **Publish** with `node scripts/publish-briefing.ts /tmp/payload.json`.
+9. **Publish** with `node scripts/publish-briefing.ts /tmp/payload.json`.
    - `409 already published`: another run beat you to it. Stop without notifying.
    - `422`: fix the payload as the error says and publish again, up to 3 tries.
-9. **Notify** with the PushNotification tool. Keep it short and specific, e.g.
-   `Morning briefing: CPI at 8:30, 2 swing ideas (MU, XLE). AMZN reports Thu.`
-10. Finish with a one-paragraph summary of what you published.
+10. **Notify** with the PushNotification tool. Keep it short and specific, e.g.
+    `Morning briefing: CPI at 8:30, 2 swing ideas (MU, XLE). AMZN reports Thu.`
+11. Finish with a one-paragraph summary of what you published.
 
 The API key is added by the environment's network settings. Don't look for it, and don't set
 `DESK_AGENT_TOKEN`.
@@ -144,7 +158,7 @@ Notify in one line. Skip the research.
 ## If something fails
 
 A script has failed if it exits non-zero. `agent-context.ts` writes its error to stderr, and
-`publish-briefing.ts` prints the HTTP status. A 422 is fixable (step 8). Anything else (HTTP 0 or a
+`publish-briefing.ts` prints the HTTP status. A 422 is fixable (step 9). Anything else (HTTP 0 or a
 curl error, 401, 403, 500) is not.
 If a script fails in a way you can't fix, don't make up a workaround.
 Send a push notification starting "Market Desk run failed:" with the error in a few words, and
