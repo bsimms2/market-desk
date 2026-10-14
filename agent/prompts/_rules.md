@@ -78,10 +78,14 @@ or Brokerage) and, when he's written one, his own `thesis` ("why I own it").
    find what's moving each holding and the market. Cite the item's `url` and name its `source`.
    Headlines are leads, not proof: confirm a number with `quotes.ts` or a page you can open
    before you state it.
-5. **Official data and calendars.** These scripts need `DESK_CONTACT_EMAIL`, which the message
-   that started this run sets. Run `export` with it first.
-   - `node scripts/econ.ts`: the latest BLS numbers. CPI and core CPI (m/m and y/y), PPI,
-     unemployment, payrolls and wages. Use these for any "the last report showed…" statement.
+5. **Official data and calendars.** The message that started this run gives `export` lines for
+   `DESK_CONTACT_EMAIL` and `FRED_API_KEY`. Run them in the same shell command as these scripts.
+   - `node scripts/econ.ts`: the latest official data from FRED (St. Louis Fed). CPI, core CPI,
+     core PCE, PPI, unemployment, payrolls, wages, jobless claims, retail sales, GDP growth,
+     consumer sentiment, the fed funds rate, 2- and 10-year yields, the 10y-2y spread, the
+     30-year mortgage rate and the VIX, each with its date and changes. Use these for any "the
+     last report showed…" or "rates are…" statement. It falls back to BLS (fewer series) if
+     FRED fails.
    - `node scripts/filings.ts --holdings /tmp/context.json <idea tickers>`: SEC filings in the
      last 14 days. 8-Ks are labelled by what they mean (e.g. "2.02 earnings results", "5.02
      executive/director change"), along with 10-Qs and 10-Ks, and a count of insider Form 4
