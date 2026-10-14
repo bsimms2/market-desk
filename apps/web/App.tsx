@@ -102,7 +102,8 @@ function PortfolioNav() {
 
 const icon = (glyph: string) =>
   function TabIcon({ color }: { color: string }) {
-    return <Text style={{ fontSize: 20, color }}>{glyph}</Text>;
+    // Fixed line height so the glyph can't push the label below the bar.
+    return <Text style={{ fontSize: 18, lineHeight: 22, color }}>{glyph}</Text>;
   };
 
 function Tabs() {
@@ -121,14 +122,17 @@ function Tabs() {
           headerTitleStyle: { fontWeight: "700" },
           tabBarActiveTintColor: c.accent,
           tabBarInactiveTintColor: c.textDim,
-          tabBarStyle: { backgroundColor: c.card, borderTopColor: c.border },
+          // Taller than the default 49px so labels clear Safari's bottom toolbar
+          // and descenders ("y", "g") aren't clipped on iPhone.
+          tabBarStyle: { backgroundColor: c.card, borderTopColor: c.border, height: 62, paddingTop: 6, paddingBottom: 8 },
+          tabBarLabelStyle: { fontSize: 12, lineHeight: 16 },
           sceneStyle: { backgroundColor: c.bg },
         }}
       >
         <Tab.Screen name="Today" component={TodayScreen} options={{ tabBarIcon: icon("⌂") }} />
         <Tab.Screen name="JournalTab" component={JournalNav} options={{ title: "Journal", headerShown: false, tabBarIcon: icon("✎") }} />
         <Tab.Screen name="PortfolioTab" component={PortfolioNav} options={{ title: "Portfolio", headerShown: false, tabBarIcon: icon("◔") }} />
-        <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarIcon: icon("⚙") }} />
+        <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarIcon: icon("≡") }} />
       </Tab.Navigator>
     </NavigationContainer>
   );
