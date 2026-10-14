@@ -122,9 +122,8 @@ function Tabs() {
           headerTitleStyle: { fontWeight: "700" },
           tabBarActiveTintColor: c.accent,
           tabBarInactiveTintColor: c.textDim,
-          // Taller than the default 49px so labels clear Safari's bottom toolbar
-          // and descenders ("y", "g") aren't clipped on iPhone.
-          tabBarStyle: { backgroundColor: c.card, borderTopColor: c.border, height: 62, paddingTop: 6, paddingBottom: 8 },
+          // Default height: the library adds the safe-area inset (home indicator) itself.
+          tabBarStyle: { backgroundColor: c.card, borderTopColor: c.border },
           tabBarLabelStyle: { fontSize: 12, lineHeight: 16 },
           sceneStyle: { backgroundColor: c.bg },
         }}
