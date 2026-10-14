@@ -50,6 +50,11 @@ bash tools/deploy_function.sh           # deploy agent-api + push secrets from .
   so the return is computed on the premium. A Return % typed on the trade overrides the computed one.
 - Dark mode follows the iPad setting (`useColorScheme`). Gains and losses always show a +/− sign
   as well as a color.
+- **Sign-in on the iOS Home Screen app uses a password.** Mail opens magic links in Safari, which
+  has a separate sign-in. The free plan rejects email template edits (so no typed code) unless we
+  add custom SMTP. Set the password in Settings while signed in via the link.
+- The page template is `apps/web/public/index.html`. It sizes `#root` to the visible viewport,
+  because iOS Safari's toolbar was covering the tab bar.
 - `supabase/config.toml` was pushed with `config push` to set `site_url` and the redirect URLs.
   Careful: a push sends every declared auth setting, not only the ones you changed.
 
