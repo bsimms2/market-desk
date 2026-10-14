@@ -44,7 +44,7 @@ function nyToday(): string {
 async function context(): Promise<Response> {
   const since = new Date(Date.now() - 21 * 86_400_000).toISOString();
   const since14 = new Date(Date.now() - 14 * 86_400_000).toISOString().slice(0, 10);
-  const [open, recent, holdings, briefings, all, closed] = await Promise.all([
+  const [open, recent, holdings, briefings, all, closed, concepts] = await Promise.all([
     db.from("trades").select("*").eq("status", "open").order("opened_on"),
     db.from("trades").select("id,created_at,track,ticker,direction,instrument,structure,status,catalyst,invalidation,source_briefing_id")
       .gte("created_at", since).order("created_at", { ascending: false }),
@@ -55,8 +55,10 @@ async function context(): Promise<Response> {
     db.from("trades").select("track,status,instrument"),
     db.from("trades").select("track,ticker,direction,instrument,structure,catalyst_type,entry_price,exit_price,opened_on,closed_on,return_pct,lesson")
       .eq("status", "closed").gte("closed_on", since14).order("closed_on", { ascending: false }),
+    db.from("concepts").select("term,category,times_explained,first_explained,last_explained,first_briefing_id,understood")
+      .order("first_explained"),
   ]);
-  const err = open.error ?? recent.error ?? holdings.error ?? briefings.error ?? all.error ?? closed.error;
+  const err = open.error ?? recent.error ?? holdings.error ?? briefings.error ?? all.error ?? closed.error ?? concepts.error;
   if (err) return json({ error: err.message }, 500);
   return json({
     today_new_york: nyToday(),
@@ -66,6 +68,7 @@ async function context(): Promise<Response> {
     recent_briefings: briefings.data,
     journal_counts: countBy(all.data ?? []),
     closed_last_14d: closed.data,
+    concepts_explained: concepts.data,
   });
 }
 
@@ -89,7 +92,7 @@ async function publish(req: Request): Promise<Response> {
   }
   const v = validatePayload(body);
   if (!v.ok) return json({ error: "invalid payload", details: v.errors }, 422);
-  const { briefing, ideas, prices } = v.value;
+  const { briefing, ideas, prices, concepts } = v.value;
 
   // One briefing per kind per date, so a retried run can't double-post.
   const dup = await db.from("briefings").select("id").eq("kind", briefing.kind).eq("date", briefing.date).maybeSingle();
@@ -150,8 +153,27 @@ async function publish(req: Request): Promise<Response> {
     if (!u.error) pricesUpdated += u.data.length;
   }
 
+  let conceptsSaved = 0;
+  for (const c of concepts ?? []) {
+    const term = c.term.trim().replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9)]+$/g, "");
+    const key = term.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    const found = await db.from("concepts").select("id,times_explained").eq("term_key", key).maybeSingle();
+    if (found.error) continue;
+    const res = found.data
+      ? await db.from("concepts").update({ times_explained: found.data.times_explained + 1, last_explained: briefing.date }).eq("id", found.data.id)
+      : await db.from("concepts").insert({
+          term,
+          category: c.category ?? null,
+          explanation: c.explanation,
+          first_briefing_id: briefingId,
+          first_explained: briefing.date,
+          last_explained: briefing.date,
+        });
+    if (!res.error) conceptsSaved++;
+  }
+
   const notified = await notify(briefing.title, briefing.summary ?? null, briefingId);
-  return json({ briefing_id: briefingId, idea_ids: ideaIds, prices_updated: pricesUpdated, notified });
+  return json({ briefing_id: briefingId, idea_ids: ideaIds, prices_updated: pricesUpdated, concepts_saved: conceptsSaved, notified });
 }
 
 async function notify(title: string, summary: string | null, id: string): Promise<string> {

@@ -140,7 +140,8 @@ The API key is added by the environment's network settings. Don't look for it, a
       "options_angle": "one way to express it with options + one sentence on options vs. shares (IV, earnings crush, time decay, defined risk)"
     }
   ],
-  "prices": [{ "ticker": "AMZN", "price": 258.58, "on": "YYYY-MM-DD" }]
+  "prices": [{ "ticker": "AMZN", "price": 258.58, "on": "YYYY-MM-DD" }],
+  "concepts": [{ "term": "IV crush", "category": "options", "explanation": "…" }]
 }
 ```
 

@@ -36,9 +36,19 @@ export interface PriceInput {
   on: string;
 }
 
+export interface ConceptInput {
+  /** Short canonical name, e.g. "IV crush", "debit spread", "yield curve". */
+  term: string;
+  /** One or two plain sentences: what it is and why it mattered in this briefing. */
+  explanation: string;
+  category?: "options" | "macro" | "rates" | "valuation" | "technical" | "risk" | "earnings" | "other";
+}
+
 export interface PublishPayload {
   briefing: BriefingInput;
   ideas: IdeaInput[];
+  /** Concepts this briefing explained (fully or as a reminder). Builds the "already learned" list. */
+  concepts?: ConceptInput[];
   /** Latest prices for held tickers, from the agent's research. Updates holdings.last_price only. */
   prices?: PriceInput[];
 }
@@ -90,6 +100,15 @@ export function validatePayload(input: unknown): Validation {
         if (!str(raw[f])) errors.push(`${at}.${f} is required`);
       }
     });
+  }
+
+  if (p.concepts != null) {
+    if (!Array.isArray(p.concepts)) errors.push("concepts must be a list");
+    else
+      p.concepts.forEach((c: any, i: number) => {
+        if (!c || !str(c.term) || c.term.length > 60) errors.push(`concepts[${i}].term is required (max 60 chars)`);
+        if (!c || !str(c.explanation)) errors.push(`concepts[${i}].explanation is required`);
+      });
   }
 
   if (p.prices != null) {
