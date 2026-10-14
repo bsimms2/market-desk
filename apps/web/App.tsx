@@ -17,6 +17,7 @@ import { supabase } from "./src/db/supabase";
 import { DataProvider } from "./src/db/data";
 import type { JournalStackParamList, PortfolioStackParamList, TabParamList } from "./src/nav";
 import { Button } from "./src/components/ui";
+import { TabBar } from "./src/components/TabBar";
 import { SignInScreen } from "./src/screens/SignInScreen";
 import { TodayScreen } from "./src/screens/TodayScreen";
 import { JournalScreen } from "./src/screens/JournalScreen";
@@ -102,8 +103,7 @@ function PortfolioNav() {
 
 const icon = (glyph: string) =>
   function TabIcon({ color }: { color: string }) {
-    // Fixed line height so the glyph can't push the label below the bar.
-    return <Text style={{ fontSize: 18, lineHeight: 22, color }}>{glyph}</Text>;
+    return <Text style={{ fontSize: 20, lineHeight: 24, color }}>{glyph}</Text>;
   };
 
 function Tabs() {
@@ -116,15 +116,11 @@ function Tabs() {
   return (
     <NavigationContainer theme={navTheme} linking={linking} documentTitle={{ formatter: (o) => (o?.title ? `${o.title} · Market Desk` : "Market Desk") }}>
       <Tab.Navigator
+        tabBar={(props) => <TabBar {...props} />}
         screenOptions={{
           headerStyle: { backgroundColor: c.card },
           headerTintColor: c.text,
           headerTitleStyle: { fontWeight: "700" },
-          tabBarActiveTintColor: c.accent,
-          tabBarInactiveTintColor: c.textDim,
-          // Default height: the library adds the safe-area inset (home indicator) itself.
-          tabBarStyle: { backgroundColor: c.card, borderTopColor: c.border },
-          tabBarLabelStyle: { fontSize: 12, lineHeight: 16 },
           sceneStyle: { backgroundColor: c.bg },
         }}
       >
