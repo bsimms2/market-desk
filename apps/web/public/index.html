@@ -13,6 +13,8 @@
          status bar but sizes it as if it didn't, leaving an unpaintable strip at the bottom. -->
     <meta name="apple-mobile-web-app-status-bar-style" content="black" />
     <meta name="apple-mobile-web-app-title" content="Market Desk" />
+    <!-- Scope = the whole site, so in-app navigation never opens a Safari sheet. -->
+    <link rel="manifest" href="/market-desk/manifest.json" />
     <title>%WEB_TITLE%</title>
     <style id="expo-reset">
       html,
@@ -28,8 +30,22 @@
           background: #0f1216;
         }
       }
+      /*
+       * Lock the document so iOS can't rubber-band or shift the whole page
+       * (seen on iPad: scrollY -64 with the app pushed down, leaving a strip).
+       * Only the app's own scroll views scroll.
+       */
+      html {
+        overscroll-behavior: none;
+      }
       body {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
         overflow: hidden;
+        overscroll-behavior: none;
       }
       /*
        * Pin the app to the visible screen. position: fixed + inset 0 tracks
