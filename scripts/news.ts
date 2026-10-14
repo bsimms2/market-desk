@@ -21,8 +21,21 @@ export interface Item {
 const UA = "MarketDesk/1.0 (personal research; RSS reader)";
 
 function get(url: string): string {
-  return execFileSync("curl", ["-sS", "--fail", "--max-time", "20", "-A", UA, url], { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
+  // stderr is captured (not inherited), so curl errors land in `errors`, never mixed into the JSON.
+  return execFileSync("curl", ["-sS", "--fail", "--max-time", "12", "-A", UA, url], {
+    encoding: "utf8",
+    maxBuffer: 16 * 1024 * 1024,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
 }
+
+/**
+ * Hosts that refused once this run are skipped for the rest of it. In the cloud,
+ * Google News sometimes answers every request with 503; retrying each ticker's
+ * query cost 2+ minutes in the first evening test.
+ */
+const deadHosts = new Set<string>();
+const hostOf = (url: string) => new URL(url).hostname;
 
 const decode = (s: string) =>
   s
@@ -110,11 +123,18 @@ function collect(feeds: [string, string][], days: number, max: number, errors: s
   const seen = new Set<string>();
   const out: Item[] = [];
   for (const [label, url] of feeds) {
+    const host = hostOf(url);
+    if (deadHosts.has(host)) continue;
     let items: Item[];
     try {
       items = parseRss(get(url), label);
     } catch (e) {
-      errors.push(`${label}: ${((e as { stderr?: string }).stderr || (e as Error).message).trim().slice(0, 120)}`);
+      const msg = String((e as { stderr?: string }).stderr || (e as Error).message).trim();
+      // A refusal (403/429/503) or timeout means the host is blocking this run: stop asking it.
+      if (/\b(403|429|503)\b|timed out|Could not resolve/i.test(msg)) {
+        deadHosts.add(host);
+        errors.push(`${label} (${host}): ${msg.slice(0, 100)} (skipping this host for the rest of the run)`);
+      } else errors.push(`${label}: ${msg.slice(0, 120)}`);
       continue;
     }
     for (const it of items) {
