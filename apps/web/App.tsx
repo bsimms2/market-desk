@@ -15,11 +15,13 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { supabase } from "./src/db/supabase";
 import { DataProvider } from "./src/db/data";
-import type { JournalStackParamList, PortfolioStackParamList, TabParamList } from "./src/nav";
+import type { BriefingsStackParamList, JournalStackParamList, PortfolioStackParamList, TabParamList } from "./src/nav";
 import { Button } from "./src/components/ui";
 import { TabBar } from "./src/components/TabBar";
 import { SignInScreen } from "./src/screens/SignInScreen";
 import { TodayScreen } from "./src/screens/TodayScreen";
+import { BriefingsScreen } from "./src/screens/BriefingsScreen";
+import { BriefingDetailScreen } from "./src/screens/BriefingDetailScreen";
 import { JournalScreen } from "./src/screens/JournalScreen";
 import { TradeEditScreen } from "./src/screens/TradeEditScreen";
 import { PortfolioScreen } from "./src/screens/PortfolioScreen";
@@ -28,6 +30,7 @@ import { SettingsScreen } from "./src/screens/SettingsScreen";
 import { space, ThemeProvider, useTheme } from "./src/theme";
 
 const Tab = createBottomTabNavigator<TabParamList>();
+const BriefingsStack = createNativeStackNavigator<BriefingsStackParamList>();
 const JournalStack = createNativeStackNavigator<JournalStackParamList>();
 const PortfolioStack = createNativeStackNavigator<PortfolioStackParamList>();
 
@@ -50,6 +53,13 @@ const linking: LinkingOptions<TabParamList> = {
   config: {
     screens: {
       Today: "",
+      BriefingsTab: {
+        path: "briefings",
+        screens: {
+          BriefingsList: "",
+          BriefingDetail: ":briefingId",
+        },
+      },
       JournalTab: {
         path: "journal",
         screens: {
@@ -79,6 +89,16 @@ function useStackOptions() {
     headerBackTitle: "Back",
     contentStyle: { backgroundColor: c.bg },
   };
+}
+
+function BriefingsNav() {
+  const opts = useStackOptions();
+  return (
+    <BriefingsStack.Navigator screenOptions={opts}>
+      <BriefingsStack.Screen name="BriefingsList" component={BriefingsScreen} options={{ title: "Briefings" }} />
+      <BriefingsStack.Screen name="BriefingDetail" component={BriefingDetailScreen} options={{ title: "Briefing" }} />
+    </BriefingsStack.Navigator>
+  );
 }
 
 function JournalNav() {
@@ -125,6 +145,7 @@ function Tabs() {
         }}
       >
         <Tab.Screen name="Today" component={TodayScreen} options={{ tabBarIcon: icon("⌂") }} />
+        <Tab.Screen name="BriefingsTab" component={BriefingsNav} options={{ title: "Briefings", headerShown: false, tabBarIcon: icon("▤") }} />
         <Tab.Screen name="JournalTab" component={JournalNav} options={{ title: "Journal", headerShown: false, tabBarIcon: icon("✎") }} />
         <Tab.Screen name="PortfolioTab" component={PortfolioNav} options={{ title: "Portfolio", headerShown: false, tabBarIcon: icon("◔") }} />
         <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarIcon: icon("≡") }} />

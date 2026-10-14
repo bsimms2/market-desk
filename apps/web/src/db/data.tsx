@@ -23,6 +23,35 @@ interface Data {
 
 const Ctx = React.createContext<Data | null>(null);
 
+/** Full briefing (with body_md and sources), fetched on demand. */
+export function useBriefing(id: string | undefined): { briefing: Briefing | null; error: string | null; loading: boolean } {
+  const [state, setState] = React.useState<{ briefing: Briefing | null; error: string | null; loading: boolean }>({
+    briefing: null,
+    error: null,
+    loading: !!id,
+  });
+  React.useEffect(() => {
+    if (!id) return;
+    let live = true;
+    setState({ briefing: null, error: null, loading: true });
+    void supabase
+      .from("briefings")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (!live) return;
+        if (error) setState({ briefing: null, error: error.message, loading: false });
+        else if (!data) setState({ briefing: null, error: "That briefing isn't here.", loading: false });
+        else setState({ briefing: { ...(data as Briefing), sources: Array.isArray(data.sources) ? data.sources : [] }, error: null, loading: false });
+      });
+    return () => {
+      live = false;
+    };
+  }, [id]);
+  return state;
+}
+
 export function useData(): Data {
   const d = React.useContext(Ctx);
   if (!d) throw new Error("useData outside DataProvider");

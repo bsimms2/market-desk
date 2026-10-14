@@ -179,8 +179,11 @@ export function TradeEditScreen({ navigation, route }: JournalProps<"TradeEdit">
         </Row>
       ) : null}
       {source ? (
-        <Text style={[font.small, { marginBottom: space.md }]}>
-          From briefing: {source.title} ({source.date})
+        <Text
+          style={[font.small, { marginBottom: space.md, color: c.accent }]}
+          onPress={() => navigation.getParent()?.navigate("BriefingsTab", { screen: "BriefingDetail", params: { briefingId: source.id } })}
+        >
+          From briefing: {source.title} ({source.date}) ›
         </Text>
       ) : null}
 

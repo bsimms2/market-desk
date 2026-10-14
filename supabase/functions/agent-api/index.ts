@@ -43,7 +43,8 @@ function nyToday(): string {
 
 async function context(): Promise<Response> {
   const since = new Date(Date.now() - 21 * 86_400_000).toISOString();
-  const [open, recent, holdings, briefings] = await Promise.all([
+  const since14 = new Date(Date.now() - 14 * 86_400_000).toISOString().slice(0, 10);
+  const [open, recent, holdings, briefings, all, closed] = await Promise.all([
     db.from("trades").select("*").eq("status", "open").order("opened_on"),
     db.from("trades").select("id,created_at,track,ticker,direction,instrument,structure,status,catalyst,invalidation,source_briefing_id")
       .gte("created_at", since).order("created_at", { ascending: false }),
@@ -51,8 +52,11 @@ async function context(): Promise<Response> {
       .eq("active", true).order("ticker"),
     db.from("briefings").select("id,kind,date,title,summary").order("date", { ascending: false })
       .order("created_at", { ascending: false }).limit(8),
+    db.from("trades").select("track,status,instrument"),
+    db.from("trades").select("track,ticker,direction,instrument,structure,catalyst_type,entry_price,exit_price,opened_on,closed_on,return_pct,lesson")
+      .eq("status", "closed").gte("closed_on", since14).order("closed_on", { ascending: false }),
   ]);
-  const err = open.error ?? recent.error ?? holdings.error ?? briefings.error;
+  const err = open.error ?? recent.error ?? holdings.error ?? briefings.error ?? all.error ?? closed.error;
   if (err) return json({ error: err.message }, 500);
   return json({
     today_new_york: nyToday(),
@@ -60,7 +64,20 @@ async function context(): Promise<Response> {
     recent_ideas_21d: recent.data,
     holdings: holdings.data,
     recent_briefings: briefings.data,
+    journal_counts: countBy(all.data ?? []),
+    closed_last_14d: closed.data,
   });
+}
+
+/** { swing: { idea: 3, open: 1, ... , option: 2, stock: 2 }, long: {...} } over all time. */
+function countBy(rows: { track: string; status: string; instrument: string }[]) {
+  const out: Record<string, Record<string, number>> = { swing: {}, long: {} };
+  for (const r of rows) {
+    const t = (out[r.track] ??= {});
+    t[r.status] = (t[r.status] ?? 0) + 1;
+    t["total"] = (t["total"] ?? 0) + 1;
+  }
+  return out;
 }
 
 async function publish(req: Request): Promise<Response> {
