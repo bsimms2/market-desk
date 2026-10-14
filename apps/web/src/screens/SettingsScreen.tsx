@@ -1,5 +1,5 @@
 import React from "react";
-import { Text } from "react-native";
+import { Platform, Text } from "react-native";
 import { supabase } from "../db/supabase";
 import { useData } from "../db/data";
 import { Alert } from "../components/dialog";
@@ -78,6 +78,31 @@ export function SettingsScreen() {
           connects to a brokerage.
         </Text>
       </Card>
+      <SectionTitle>Screen</SectionTitle>
+      <Card>
+        <Text style={[font.small, { fontVariant: ["tabular-nums"] }]}>{screenReport()}</Text>
+      </Card>
     </Screen>
   );
+}
+
+/** Layout numbers from the device, for chasing iOS Home Screen sizing bugs from a screenshot. */
+function screenReport(): string {
+  if (Platform.OS !== "web") return "";
+  const probe = document.createElement("div");
+  probe.style.cssText =
+    "position:fixed;visibility:hidden;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)";
+  document.body.appendChild(probe);
+  const cs = getComputedStyle(probe);
+  const inset = [cs.paddingTop, cs.paddingRight, cs.paddingBottom, cs.paddingLeft].map((v) => parseFloat(v) || 0).join("/");
+  probe.remove();
+  const root = document.getElementById("root")?.getBoundingClientRect();
+  const standalone = (navigator as { standalone?: boolean }).standalone === true || window.matchMedia?.("(display-mode: standalone)").matches;
+  return [
+    `standalone ${standalone ? "yes" : "no"} · dpr ${window.devicePixelRatio}`,
+    `screen ${screen.width}×${screen.height} · inner ${window.innerWidth}×${window.innerHeight}`,
+    `visual ${Math.round(window.visualViewport?.width ?? 0)}×${Math.round(window.visualViewport?.height ?? 0)} · doc ${document.documentElement.clientHeight}`,
+    `root top ${Math.round(root?.top ?? -1)} bottom ${Math.round(root?.bottom ?? -1)} · root style bottom ${document.getElementById("root")?.style.bottom || "-"}`,
+    `safe inset t/r/b/l ${inset}`,
+  ].join("\n");
 }
