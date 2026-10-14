@@ -71,18 +71,25 @@ or Brokerage) and, when he's written one, his own `thesis` ("why I own it").
 
    Before you name an idea, quote its ticker too. If a ticker returns `error`, say the price is
    unconfirmed.
-4. **Research** the story with fresh web searches (see your task prompt). Prefer primary and reputable
+4. **Headlines:** run `node scripts/news.ts --market --holdings /tmp/context.json <idea tickers>`.
+   It pulls recent headlines and summaries from publisher RSS feeds: Reuters (via Google News),
+   CNBC, Nasdaq, Yahoo Finance, MarketWatch and the Federal Reserve. Several of these sites block
+   page fetches but publish these feeds, so this is the main way to see their reporting. Use it to
+   find what's moving each holding and the market. Cite the item's `url` and name its `source`.
+   Headlines are leads, not proof: confirm a number with `quotes.ts` or a page you can open
+   before you state it.
+5. **Research** the story further with web searches and page fetches (see your task prompt). Prefer primary and reputable
    sources: company IR and filings, the BLS, the BEA, the Fed, Reuters, AP, CNBC, MarketWatch,
    Yahoo Finance, Nasdaq, exchange sites. Keep the URL of everything you rely on.
-5. **Write** the payload JSON to `/tmp/payload.json` (format below).
-6. **Check** with `node scripts/publish-briefing.ts /tmp/payload.json --dry-run`. Fix anything it
+6. **Write** the payload JSON to `/tmp/payload.json` (format below).
+7. **Check** with `node scripts/publish-briefing.ts /tmp/payload.json --dry-run`. Fix anything it
    reports, then run it again.
-7. **Publish** with `node scripts/publish-briefing.ts /tmp/payload.json`.
+8. **Publish** with `node scripts/publish-briefing.ts /tmp/payload.json`.
    - `409 already published`: another run beat you to it. Stop without notifying.
    - `422`: fix the payload as the error says and publish again, up to 3 tries.
-8. **Notify** with the PushNotification tool. Keep it short and specific, e.g.
+9. **Notify** with the PushNotification tool. Keep it short and specific, e.g.
    `Morning briefing: CPI at 8:30, 2 swing ideas (MU, XLE). AMZN reports Thu.`
-9. Finish with a one-paragraph summary of what you published.
+10. Finish with a one-paragraph summary of what you published.
 
 The API key is added by the environment's network settings. Don't look for it, and don't set
 `DESK_AGENT_TOKEN`.
@@ -137,7 +144,7 @@ Notify in one line. Skip the research.
 ## If something fails
 
 A script has failed if it exits non-zero. `agent-context.ts` writes its error to stderr, and
-`publish-briefing.ts` prints the HTTP status. A 422 is fixable (step 7). Anything else (HTTP 0 or a
+`publish-briefing.ts` prints the HTTP status. A 422 is fixable (step 8). Anything else (HTTP 0 or a
 curl error, 401, 403, 500) is not.
 If a script fails in a way you can't fix, don't make up a workaround.
 Send a push notification starting "Market Desk run failed:" with the error in a few words, and
