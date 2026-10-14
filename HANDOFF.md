@@ -97,3 +97,23 @@ DST needs no edits.
 The first long-weekly test published fine. Search worked, but WebFetch hit DNS blocks, so the
 environment needs finance and news hosts allowed (`query1`/`query2.finance.yahoo.com` are required
 for `quotes.ts`). Email notification is skipped (no Resend); runs use PushNotification instead.
+
+**Agent data sources** (all run through curl):
+
+| Script | What it pulls |
+|---|---|
+| `quotes.ts` | Yahoo chart feed: prices |
+| `news.ts` | RSS: Google News for Reuters, CNBC, Nasdaq, Yahoo, MarketWatch, Fed |
+| `econ.ts` | FRED API (key), with BLS v1 as fallback |
+| `filings.ts` | SEC EDGAR |
+| `finnhub.ts` | Finnhub: earnings, analyst ratings, news |
+
+- **Finnhub key:** a network secret (header `X-Finnhub-Token`) in environment "Default".
+- **FRED key and SEC/BLS contact email:** both go in the URL or the User-Agent, so they can't be
+  network secrets. They're passed as `export` lines in the private routine prompts. Never put them
+  in the repo (it's public). Local copies are in `.env`.
+- **Allowed domains** must include `query1`/`query2.finance.yahoo.com`, `feeds.finance.yahoo.com`,
+  `news.google.com`, `feeds.content.dowjones.io`, `*.cnbc.com`, `*.nasdaq.com`, `*.sec.gov`,
+  `*.bls.gov`, `*.federalreserve.gov` and `api.stlouisfed.org`.
+- **Blocked:** Reuters (WebFetch refuses it), plus CNBC and Nasdaq article pages. AP and BLS
+  release pages return 403.
