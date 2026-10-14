@@ -3,7 +3,6 @@ import { Text } from "react-native";
 import { supabase } from "../db/supabase";
 import { useData } from "../db/data";
 import { Alert } from "../components/dialog";
-import { ScreenReadout } from "../components/ScreenReadout";
 import { Button, Card, Field, Input, Screen, SectionTitle } from "../components/ui";
 import { space, useTheme } from "../theme";
 
@@ -78,10 +77,6 @@ export function SettingsScreen() {
           Paper trading only. Briefings are research and learning material, not financial advice. Nothing here places orders or
           connects to a brokerage.
         </Text>
-      </Card>
-      <SectionTitle>Screen</SectionTitle>
-      <Card>
-        <ScreenReadout />
       </Card>
     </Screen>
   );
