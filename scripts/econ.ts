@@ -61,7 +61,7 @@ function fromFred(key: string) {
   const errors: string[] = [];
   const series = FRED.map((s) => {
     try {
-      const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${s.id}&api_key=${key}&file_type=json&sort_order=desc&limit=${BACK[s.freq].year + 5}`;
+      const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${s.id}&api_key=${key}&file_type=json&sort_order=desc&limit=${{ d: 400, w: 70, m: 30, q: 12 }[s.freq]}`;
       const j = JSON.parse(curl(["-A", "MarketDesk personal research", url]));
       if (j.error_message) throw new Error(j.error_message);
       const obs = (j.observations as { date: string; value: string }[]).filter((o) => o.value !== ".");
@@ -70,11 +70,30 @@ function fromFred(key: string) {
       const v = Number(cur.value);
       const b = BACK[s.freq];
       const out: Record<string, unknown> = { id: s.id, name: s.name, date: cur.date, value: v };
-      const at = (n: number) => (obs[n] ? Number(obs[n]!.value) : undefined);
-      const p = at(b.prev);
-      if (p !== undefined) Object.assign(out, { previous: { date: obs[b.prev]!.date, value: p } }, change(s.kind, v, p, s.freq === "q" ? "qoq" : s.freq === "m" ? "mom" : s.freq === "w" ? "wow" : "dod"));
-      if (b.month && at(b.month) !== undefined) Object.assign(out, change(s.kind, v, at(b.month)!, "1mo"));
-      if (at(b.year) !== undefined) Object.assign(out, change(s.kind, v, at(b.year)!, "yoy"));
+      // Compare by calendar date, not by row count: FRED leaves gaps (e.g. no October 2025
+      // CPI after the shutdown), and counting rows would compare against the wrong month.
+      const back = (d: string, months: number, days = 0) => {
+        const t = new Date(d + "T00:00:00Z");
+        t.setUTCMonth(t.getUTCMonth() - months);
+        t.setUTCDate(t.getUTCDate() - days);
+        return t.toISOString().slice(0, 10);
+      };
+      // Latest observation on or before `target`, but no older than `slackDays` before it.
+      const asOf = (target: string, slackDays: number) => {
+        const floor = back(target, 0, slackDays);
+        const o = obs.find((x) => x.date <= target && x.date >= floor);
+        return o ? { date: o.date, value: Number(o.value) } : undefined;
+      };
+      const step = { d: [0, 1], w: [0, 7], m: [1, 0], q: [3, 0] }[s.freq] as [number, number];
+      const slack = { d: 5, w: 6, m: 0, q: 0 }[s.freq];
+      const p = asOf(back(cur.date, step[0], step[1]), slack);
+      if (p) Object.assign(out, { previous: p }, change(s.kind, v, p.value, s.freq === "q" ? "qoq" : s.freq === "m" ? "mom" : s.freq === "w" ? "wow" : "dod"));
+      if (b.month) {
+        const m = asOf(back(cur.date, 1), slack);
+        if (m) Object.assign(out, change(s.kind, v, m.value, "1mo"));
+      }
+      const y = asOf(back(cur.date, 12), slack);
+      if (y) Object.assign(out, change(s.kind, v, y.value, "yoy"));
       return out;
     } catch (e) {
       errors.push(`${s.id}: ${(e as Error).message.slice(0, 120)}`);
