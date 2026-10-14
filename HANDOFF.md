@@ -75,7 +75,25 @@ Phase 1 is done. Cloud network check PASSED (2026-10-13): environment "Default" 
 2026-10-13 from his screenshots: 13 holdings, Roth IRA + Brokerage; cash is not stored. One TEST briefing and one TEST SPY idea
 (from `scripts/sample-payload.json`) are in the database. Delete them once he has seen the flow.
 
-Next is phase 2: the three prompts, the Briefings archive with Markdown, the full dashboard, the
-Resend email (needs `RESEND_API_KEY` and `NOTIFY_EMAIL` in `.env`), and the scheduled routines.
-Times are 7:55 AM and 5:00 PM ET on weekdays and 6:00 PM ET on Sundays. Daylight saving ends
-Nov 1, so schedule them in America/New_York.
+**Phase 2 (2026-10-14), in progress.** Built: the Briefings tab (archive and Markdown detail), a
+fuller Today, `agent/prompts/` (`_rules.md` plus three tasks), `scripts/should-run.ts` (New York
+time window plus NYSE holidays), and `scripts/quotes.ts` (Yahoo chart feed, verified prices).
+
+Agent scripts reach agent-api through **curl**. Node's fetch bypasses the cloud egress proxy, so
+the network-secret header never arrived and requests got 401.
+
+Routines all use environment "Default", the repo source, and claude-sonnet-5-5:
+
+| Routine | ID | Cron (UTC) | State |
+|---|---|---|---|
+| Swing morning | trig_01XWzEZhiHDXN43gpaBRqyJq | `55 11,12 * * 1-5` | created disabled |
+| Swing evening | trig_01YTJu3ie5JhaRq8cFyM6K7J | `0 21,22 * * 1-5` | created disabled |
+| Long-term weekly | trig_01M4eaTQozo6tVqgGxVoquGE | `0 22,23 * * 0` | created disabled |
+| Manual test | trig_01RHdKcx45Uou4bJjDnpKCjv | one-off | prompt swapped per test |
+
+Each routine fires at both UTC hours; `should-run.ts` keeps the one inside the New York window, so
+DST needs no edits.
+
+The first long-weekly test published fine. Search worked, but WebFetch hit DNS blocks, so the
+environment needs finance and news hosts allowed (`query1`/`query2.finance.yahoo.com` are required
+for `quotes.ts`). Email notification is skipped (no Resend); runs use PushNotification instead.
