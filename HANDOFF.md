@@ -53,8 +53,17 @@ bash tools/deploy_function.sh           # deploy agent-api + push secrets from .
 - **Sign-in on the iOS Home Screen app uses a password.** Mail opens magic links in Safari, which
   has a separate sign-in. The free plan rejects email template edits (so no typed code) unless we
   add custom SMTP. Set the password in Settings while signed in via the link.
-- The page template is `apps/web/public/index.html`. It sizes `#root` to the visible viewport,
-  because iOS Safari's toolbar was covering the tab bar.
+- **iOS Home Screen layout** (worked out over several rounds of on-device readouts, 2026-10-14).
+  The page template is `apps/web/public/index.html`:
+  - `#root` and `body` are `position: fixed; inset: 0`, and `overscroll-behavior: none` is set.
+    Otherwise the whole document rubber-bands and can stay shifted (iPad measured scrollY -64).
+  - The status bar style is `black`, not `black-translucent`. With translucent, iOS draws only
+    `innerHeight` = screen minus status bar and leaves a strip at the bottom that can't be painted.
+  - `manifest.json` sets scope `/market-desk/` so in-app pages never open a Safari sheet.
+  - `theme-color` has light and dark variants matching the header.
+  - The tab bar is our own (`components/TabBar.tsx`): the library's fixed heights clipped labels.
+  - iOS reads the status-bar style and the manifest only when the icon is added. Changing them
+    means deleting and re-adding the Home Screen icon.
 - `supabase/config.toml` was pushed with `config push` to set `site_url` and the redirect URLs.
   Careful: a push sends every declared auth setting, not only the ones you changed.
 
