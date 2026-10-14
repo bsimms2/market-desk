@@ -48,5 +48,40 @@
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
+    <script>
+      /*
+       * iOS bug in Home Screen mode with a translucent status bar: the page is
+       * drawn from the top of the screen but window.innerHeight is short by the
+       * status bar height, leaving an empty strip under the tab bar. When the
+       * gap matches that signature exactly, stretch #root down over it.
+       * Anywhere else (Safari, desktop) the check fails and nothing changes.
+       */
+      (function () {
+        var standalone = window.navigator.standalone === true || (window.matchMedia && matchMedia("(display-mode: standalone)").matches);
+        if (!standalone) return;
+        var probe;
+        function insetTop() {
+          if (!probe) {
+            probe = document.createElement("div");
+            probe.style.cssText = "position:fixed;top:0;left:0;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top)";
+            document.body.appendChild(probe);
+          }
+          return parseFloat(getComputedStyle(probe).paddingTop) || 0;
+        }
+        function fix() {
+          var root = document.getElementById("root");
+          if (!root) return;
+          var landscape = window.innerWidth > window.innerHeight;
+          var screenH = landscape ? Math.min(screen.width, screen.height) : Math.max(screen.width, screen.height);
+          var gap = screenH - window.innerHeight;
+          var top = insetTop();
+          root.style.bottom = gap > 0 && top > 0 && Math.abs(gap - top) <= 2 ? -gap + "px" : "0";
+        }
+        window.addEventListener("load", fix);
+        window.addEventListener("resize", fix);
+        window.addEventListener("orientationchange", function () { setTimeout(fix, 300); });
+        document.addEventListener("DOMContentLoaded", fix);
+      })();
+    </script>
   </body>
 </html>
