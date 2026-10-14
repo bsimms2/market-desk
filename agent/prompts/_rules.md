@@ -51,8 +51,8 @@ or Brokerage) and, when he's written one, his own `thesis` ("why I own it").
 
 ## Steps for every run
 
-1. **Gate.** Run `node scripts/should-run.ts <kind>` (your task prompt gives the kind and any
-   flags).
+1. **Gate.** Run `node scripts/should-run.ts <kind>`. If the message that started this run gives
+   a different gate command (for example with `--force` for a manual test), use that one.
    - `SKIP …`: stop right away. Post nothing, send nothing.
    - `HOLIDAY <kind> <date> <name>`: publish a one-line note (see "Holidays" below), then stop.
    - `RUN <kind> <date>`: carry on. `<date>` is the market date for `briefing.date`.
@@ -125,6 +125,9 @@ Notify in one line. Skip the research.
 
 ## If something fails
 
-If a script fails in a way you can't fix (network error, 401, 500), don't make up a workaround.
+A script has failed if it exits non-zero. `agent-context.ts` writes its error to stderr, and
+`publish-briefing.ts` prints the HTTP status. A 422 is fixable (step 6). Anything else (HTTP 0 or a
+curl error, 401, 403, 500) is not.
+If a script fails in a way you can't fix, don't make up a workaround.
 Send a push notification starting "Market Desk run failed:" with the error in a few words, and
 stop.

@@ -4,7 +4,7 @@
 // Validates locally first so a bad payload fails fast with readable errors.
 import { readFileSync } from "node:fs";
 import { validatePayload } from "../packages/desk/src/payload.ts";
-import { apiUrl, authHeaders } from "./desk-env.ts";
+import { deskRequest } from "./desk-env.ts";
 
 const file = process.argv[2];
 const dryRun = process.argv.includes("--dry-run");
@@ -24,11 +24,9 @@ if (dryRun) {
   process.exit(0);
 }
 
-const res = await fetch(apiUrl("publish"), {
-  method: "POST",
-  headers: { "content-type": "application/json", ...authHeaders() },
-  body: JSON.stringify(v.value),
-});
-const text = await res.text();
-console.log(text);
-if (!res.ok) process.exitCode = 1;
+const res = deskRequest("publish", JSON.stringify(v.value));
+console.log(res.text);
+if (res.status !== 200) {
+  console.error(`publish failed (HTTP ${res.status})`);
+  process.exitCode = 1;
+}
