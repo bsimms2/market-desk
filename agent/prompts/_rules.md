@@ -45,9 +45,8 @@ or Brokerage) and, when he's written one, his own `thesis` ("why I own it").
   weekly briefing and suggest he add one in the app. Don't invent his reasons for him.
 - His paper ideas should mention any overlap with what he already owns, e.g. "you already hold
   NVDA directly and through QQQ".
-- Every run, include **`prices`** in the payload: the latest price for each holding ticker, with
-  the date that price is from. In the morning, that's the previous close. In the evening, it's
-  today's close. Only include prices you verified in this run.
+- Every run, include **`prices`** in the payload: for each holding, `price` and `as_of` from
+  `quotes.ts` (as `on`). Skip any ticker that returned an error.
 
 ## Steps for every run
 
@@ -60,18 +59,30 @@ or Brokerage) and, when he's written one, his own `thesis` ("why I own it").
    trades, ideas from the last 21 days, holdings, recent briefings, all-time journal counts per track
    (`journal_counts`) and trades closed in the last 14 days (`closed_last_14d`). If it fails, follow
    "If something fails" below.
-3. **Research** with fresh web searches (see your task prompt). Prefer primary and reputable
+3. **Prices first:** run `node scripts/quotes.ts --holdings /tmp/context.json <other tickers>`.
+   It returns verified prices from a market data feed: the latest price with its New York date,
+   the previous close, and day, 5-day and 1-month % changes. **Use these numbers** for every
+   price, % move, entry zone and target. Don't take prices from search snippets when the feed
+   has them. Useful symbols:
+   - indexes: `^GSPC ^IXIC ^DJI ^RUT ^VIX`;
+   - futures: `ES=F NQ=F YM=F` (stock index), `CL=F BZ=F` (oil), `GC=F` (gold);
+   - rates and currencies: `^TNX` (10-year yield, in %), `DX-Y.NYB` (dollar), `BTC-USD`;
+   - sector ETFs: `XLK XLE XLF XLV XLY XLP XLI XLU SMH`.
+
+   Before you name an idea, quote its ticker too. If a ticker returns `error`, say the price is
+   unconfirmed.
+4. **Research** the story with fresh web searches (see your task prompt). Prefer primary and reputable
    sources: company IR and filings, the BLS, the BEA, the Fed, Reuters, AP, CNBC, MarketWatch,
    Yahoo Finance, Nasdaq, exchange sites. Keep the URL of everything you rely on.
-4. **Write** the payload JSON to `/tmp/payload.json` (format below).
-5. **Check** with `node scripts/publish-briefing.ts /tmp/payload.json --dry-run`. Fix anything it
+5. **Write** the payload JSON to `/tmp/payload.json` (format below).
+6. **Check** with `node scripts/publish-briefing.ts /tmp/payload.json --dry-run`. Fix anything it
    reports, then run it again.
-6. **Publish** with `node scripts/publish-briefing.ts /tmp/payload.json`.
+7. **Publish** with `node scripts/publish-briefing.ts /tmp/payload.json`.
    - `409 already published`: another run beat you to it. Stop without notifying.
    - `422`: fix the payload as the error says and publish again, up to 3 tries.
-7. **Notify** with the PushNotification tool. Keep it short and specific, e.g.
+8. **Notify** with the PushNotification tool. Keep it short and specific, e.g.
    `Morning briefing: CPI at 8:30, 2 swing ideas (MU, XLE). AMZN reports Thu.`
-8. Finish with a one-paragraph summary of what you published.
+9. Finish with a one-paragraph summary of what you published.
 
 The API key is added by the environment's network settings. Don't look for it, and don't set
 `DESK_AGENT_TOKEN`.
@@ -126,7 +137,7 @@ Notify in one line. Skip the research.
 ## If something fails
 
 A script has failed if it exits non-zero. `agent-context.ts` writes its error to stderr, and
-`publish-briefing.ts` prints the HTTP status. A 422 is fixable (step 6). Anything else (HTTP 0 or a
+`publish-briefing.ts` prints the HTTP status. A 422 is fixable (step 7). Anything else (HTTP 0 or a
 curl error, 401, 403, 500) is not.
 If a script fails in a way you can't fix, don't make up a workaround.
 Send a push notification starting "Market Desk run failed:" with the error in a few words, and
