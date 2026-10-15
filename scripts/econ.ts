@@ -35,6 +35,9 @@ const FRED: Spec[] = [
   { id: "T10Y2Y", name: "10y minus 2y spread (pts)", kind: "rate", freq: "d" },
   { id: "MORTGAGE30US", name: "30-year mortgage rate (%)", kind: "rate", freq: "w" },
   { id: "VIXCLS", name: "VIX", kind: "level", freq: "d" },
+  // Credit spreads: the extra yield companies pay over Treasuries. Rising = lenders getting nervous.
+  { id: "BAMLH0A0HYM2", name: "High-yield (junk) bond spread over Treasuries (%)", kind: "rate", freq: "d" },
+  { id: "BAMLC0A0CM", name: "Investment-grade bond spread over Treasuries (%)", kind: "rate", freq: "d" },
 ];
 
 // How many observations back = "previous", "~1 month", "~1 year" for each frequency.

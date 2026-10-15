@@ -108,6 +108,20 @@ or Brokerage) and, when he's written one, his own `thesis` ("why I own it").
    trades, ideas from the last 21 days, holdings, recent briefings, all-time journal counts per track
    (`journal_counts`) and trades closed in the last 14 days (`closed_last_14d`). If it fails, follow
    "If something fails" below.
+   **Then run the research pack, always:** in one shell command, run the `export` line from the
+   message that started this run, then `node scripts/gather.ts <idea tickers>`. It runs every
+   data script below in parallel (prices, news, economic data, the calendar with actuals vs
+   forecasts, SEC filings, Finnhub) and writes `/tmp/md/digest.md` plus one JSON file per source.
+   Read the digest first. The steps below say what each source is for, and you can re-run any
+   single script to dig deeper.
+   - **Never write that a number or a reason "couldn't be found" without checking the digest and
+     the JSON files.** The economic release section lists each release with
+     `ACTUAL … vs forecast …`; quote those. If the digest says "not yet in data", look for it in
+     the market headlines before you call it unavailable.
+   - **Why did a holding move?** Check its section in the digest, especially the Finnhub and
+     "why is X moving" items. If there's truly no stock-specific news, say what it most likely
+     moved with: peers (the quantum names often move together), the sector ETF, or the day's
+     macro story. Label that as the likely driver, not a confirmed cause.
 3. **Prices first:** run `node scripts/quotes.ts --holdings /tmp/context.json <other tickers>`.
    It returns verified prices from a market data feed: the latest price with its New York date,
    the previous close, and day, 5-day and 1-month % changes. Before the open and after the close,

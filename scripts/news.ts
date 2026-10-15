@@ -22,7 +22,9 @@ const UA = "MarketDesk/1.0 (personal research; RSS reader)";
 
 function get(url: string): string {
   // stderr is captured (not inherited), so curl errors land in `errors`, never mixed into the JSON.
-  return execFileSync("curl", ["-sS", "--fail", "--max-time", "12", "-A", UA, url], {
+  // Finnhub: in the cloud the egress proxy adds X-Finnhub-Token; locally FINNHUB_TOKEN does.
+  const extra = url.includes("finnhub.io") && process.env.FINNHUB_TOKEN ? ["-H", `X-Finnhub-Token: ${process.env.FINNHUB_TOKEN}`] : [];
+  return execFileSync("curl", ["-sS", "--fail", "--max-time", "12", "-A", UA, ...extra, url], {
     encoding: "utf8",
     maxBuffer: 16 * 1024 * 1024,
     stdio: ["ignore", "pipe", "pipe"],
@@ -49,6 +51,8 @@ const decode = (s: string) =>
     .replace(/&#x201[cd];|&#822[01];/g, '"')
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
+    // Entity-encoded HTML (Google News puts an escaped <a href> list in descriptions): strip it too.
+    .replace(/<[^>]*>?/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 
@@ -69,10 +73,25 @@ export function parseRss(xml: string, fallbackSource: string): Item[] {
     const date = tag(it, "pubDate");
     const published = date && !Number.isNaN(Date.parse(date)) ? new Date(date).toISOString() : undefined;
     let summary = tag(it, "description");
-    if (summary && (summary === title || summary.startsWith(title))) summary = undefined;
+    // Google News "summaries" are just the title plus the source name again: drop those.
+    if (summary && (summary === title || summary.startsWith(title) || summary.length < title.length + 25)) summary = undefined;
     if (summary && summary.length > 400) summary = summary.slice(0, 397) + "…";
     return [{ title, source, url, published, ...(summary ? { summary } : {}) }];
   });
+}
+
+/** Finnhub company-news JSON → Items. */
+function parseFinnhub(body: string): Item[] {
+  const arr = JSON.parse(body) as { headline?: string; source?: string; url?: string; datetime?: number; summary?: string }[];
+  return arr
+    .filter((n) => n.headline && n.url && /^https?:\/\//.test(n.url))
+    .map((n) => ({
+      title: decode(n.headline!),
+      source: n.source ? `${n.source} (via Finnhub)` : "Finnhub",
+      url: n.url!,
+      ...(n.datetime ? { published: new Date(n.datetime * 1000).toISOString() } : {}),
+      ...(n.summary ? { summary: decode(n.summary).slice(0, 400) } : {}),
+    }));
 }
 
 const gnews = (q: string) => `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US&gl=US&ceid=US:en`;
@@ -88,7 +107,12 @@ const MARKET_FEEDS: [string, string][] = [
   ["Federal Reserve", "https://www.federalreserve.gov/feeds/press_all.xml"],
 ];
 
+const ymd = (offsetDays: number) => new Date(Date.now() + offsetDays * 86_400_000).toISOString().slice(0, 10);
+
 const tickerFeeds = (t: string, name?: string): [string, string][] => [
+  // Finnhub company news first: it carries Benzinga-style "why is X moving" items, and doesn't
+  // block the cloud machines the way Google News sometimes does.
+  ["Finnhub", `https://finnhub.io/api/v1/company-news?symbol=${encodeURIComponent(t)}&from=${ymd(-3)}&to=${ymd(0)}`],
   ["Google News", gnews(`${name ? `"${coreName(name)}"` : `"${t}"`} (stock OR shares OR earnings OR analyst OR guidance) when:3d`)],
   ["Yahoo Finance", `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${encodeURIComponent(t)}&region=US&lang=en-US`],
   ["Nasdaq", `https://www.nasdaq.com/feed/rssoutbound?symbol=${encodeURIComponent(t)}`],
@@ -127,11 +151,12 @@ function collect(feeds: [string, string][], days: number, max: number, errors: s
     if (deadHosts.has(host)) continue;
     let items: Item[];
     try {
-      items = parseRss(get(url), label);
+      const body = get(url);
+      items = url.includes("finnhub.io") ? parseFinnhub(body) : parseRss(body, label);
     } catch (e) {
       const msg = String((e as { stderr?: string }).stderr || (e as Error).message).trim();
-      // A refusal (403/429/503) or timeout means the host is blocking this run: stop asking it.
-      if (/\b(403|429|503)\b|timed out|Could not resolve/i.test(msg)) {
+      // A refusal (401/403/429/503) or timeout means the host is blocking this run: stop asking it.
+      if (/\b(401|403|429|503)\b|timed out|Could not resolve/i.test(msg)) {
         deadHosts.add(host);
         errors.push(`${label} (${host}): ${msg.slice(0, 100)} (skipping this host for the rest of the run)`);
       } else errors.push(`${label}: ${msg.slice(0, 120)}`);
