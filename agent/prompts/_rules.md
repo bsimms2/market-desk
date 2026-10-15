@@ -97,7 +97,9 @@ or Brokerage) and, when he's written one, his own `thesis` ("why I own it").
    "If something fails" below.
 3. **Prices first:** run `node scripts/quotes.ts --holdings /tmp/context.json <other tickers>`.
    It returns verified prices from a market data feed: the latest price with its New York date,
-   the previous close, and day, 5-day and 1-month % changes. **Use these numbers** for every
+   the previous close, and day, 5-day and 1-month % changes. Before the open and after the close,
+   stocks also get `ext_price`, `ext_time` and `ext_pct`: the pre-market or after-hours trade versus
+   the last close. Use those for "premarket" and "after hours" moves. **Use these numbers** for every
    price, % move, entry zone and target. Don't take prices from search snippets when the feed
    has them. Useful symbols:
    - indexes: `^GSPC ^IXIC ^DJI ^RUT ^VIX`;

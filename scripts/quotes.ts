@@ -19,6 +19,10 @@ interface Quote {
   week_pct?: number; // vs. the close 5 trading days before the latest
   month_pct?: number; // vs. the first close in the 1-month window
   closes?: { date: string; close: number }[];
+  /** Pre-market or after-hours trade, when the regular session is closed. */
+  ext_price?: number;
+  ext_time?: string; // New York time, e.g. "08:23"
+  ext_pct?: number; // vs. `price` (the last regular-session close)
   error?: string;
 }
 
@@ -27,13 +31,13 @@ const nyDate = (unixSec: number) =>
 const pct = (a: number, b: number) => Math.round(((a - b) / b) * 10000) / 100;
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
-function fetchChart(ticker: string): any {
+function fetchChart(ticker: string, query = "range=1mo&interval=1d"): any {
   let last = "";
   for (const host of ["query1.finance.yahoo.com", "query2.finance.yahoo.com"]) {
     try {
       const out = execFileSync(
         "curl",
-        ["-sS", "--max-time", "20", "-A", "Mozilla/5.0", `https://${host}/v8/finance/chart/${encodeURIComponent(ticker)}?range=1mo&interval=1d`],
+        ["-sS", "--max-time", "20", "-A", "Mozilla/5.0", `https://${host}/v8/finance/chart/${encodeURIComponent(ticker)}?${query}`],
         { encoding: "utf8", maxBuffer: 8 * 1024 * 1024 },
       );
       const j = JSON.parse(out);
@@ -44,6 +48,25 @@ function fetchChart(ticker: string): any {
     }
   }
   throw new Error(last);
+}
+
+/** Latest pre-market/after-hours trade from 5-minute bars (Yahoo includes them on request). */
+function extended(ticker: string, regular: number | undefined): Partial<Quote> {
+  try {
+    const r = fetchChart(ticker, "range=1d&interval=5m&includePrePost=true");
+    const ts: number[] = r.timestamp ?? [];
+    const c: (number | null)[] = r.indicators?.quote?.[0]?.close ?? [];
+    let i = c.length - 1;
+    while (i >= 0 && typeof c[i] !== "number") i--;
+    if (i < 0) return {};
+    const px = r2(c[i]!);
+    const time = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(ts[i]! * 1000));
+    // Futures/indexes trade "around the clock" and have no separate extended price.
+    if (regular == null || px === regular) return {};
+    return { ext_price: px, ext_time: time, ext_pct: pct(px, regular) };
+  } catch {
+    return {};
+  }
 }
 
 export function quote(ticker: string): Quote {
@@ -85,6 +108,7 @@ export function quote(ticker: string): Quote {
       week_pct: price != null && weekBase ? pct(price, weekBase) : undefined,
       month_pct: price != null && monthBase ? pct(price, monthBase) : undefined,
       closes: closes.slice(-6),
+      ...(session === "pre" || session === "post" ? extended(ticker, price) : {}),
     };
   } catch (e) {
     return { ticker, error: (e as Error).message.slice(0, 200) };
