@@ -131,6 +131,19 @@ or Brokerage) and, when he's written one, his own `thesis` ("why I own it").
    - `node scripts/finnhub.ts --holdings /tmp/context.json <idea tickers>`: the next earnings date
      with before/after the open and EPS/revenue estimates, analyst rating counts and how they
      changed, and company news. Prefer its earnings dates over aggregator sites.
+   - `node scripts/calendar.ts`: this week's US economic releases, each with its time (ET), impact,
+     **consensus forecast** and previous value, plus the market-wide earnings calendar for today
+     and tomorrow (companies with $1B+ revenue). **Use its forecasts** for "expected" figures;
+     don't take them from search previews. It has no actuals: get those from `econ.ts` (once FRED
+     updates) or the news feeds.
+   - `node scripts/options.ts TICKER [...]`: real option prices from CBOE (delayed about 15
+     minutes), with bid/ask, mid, IV and greeks. With no flags it gives the underlying price, IV30,
+     upcoming expiries and the **implied move** (the at-the-money straddle as a % of the price) for
+     each. `--expiry YYYY-MM-DD --spread 220/230C` (or `…P`) prices a debit spread: cost per
+     contract, max profit, breakeven and reward:risk. `--strikes 210-230` lists the chain.
+     **Every options angle must use these numbers.** Name the exact contracts, the debit and the
+     breakeven, and compare the implied move with what the idea needs. That's how Brendan
+     learns what options actually cost.
 
    If one of these errors, carry on with the others and note the gap in the briefing.
 6. **Research** the story further with web searches and page fetches (see your task prompt).
@@ -175,7 +188,7 @@ The API key is added by the environment's network settings. Don't look for it, a
       "entry_plan": "a concrete zone, e.g. \"$142–145 on a pullback; skip above $150\"",
       "target": "a concrete level, e.g. \"$158 (prior high)\"",
       "invalidation": "the wrong-if, e.g. \"closes below $138\" or \"guidance cut\"",
-      "options_angle": "one way to express it with options + one sentence on options vs. shares (IV, earnings crush, time decay, defined risk)"
+      "options_angle": "one way to express it with options, priced from options.ts (exact contracts, debit, breakeven, IV, implied move), plus one sentence on options vs. shares (IV, earnings crush, time decay, defined risk)"
     }
   ],
   "prices": [{ "ticker": "AMZN", "price": 258.58, "on": "YYYY-MM-DD" }],
