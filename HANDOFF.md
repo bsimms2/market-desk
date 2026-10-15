@@ -86,9 +86,9 @@ Routines all use environment "Default", the repo source, and claude-sonnet-5-5:
 
 | Routine | ID | Cron (UTC) | State |
 |---|---|---|---|
-| Swing morning | trig_01XWzEZhiHDXN43gpaBRqyJq | `55 11,12 * * 1-5` | created disabled |
-| Swing evening | trig_01YTJu3ie5JhaRq8cFyM6K7J | `0 21,22 * * 1-5` | created disabled |
-| Long-term weekly | trig_01M4eaTQozo6tVqgGxVoquGE | `0 22,23 * * 0` | created disabled |
+| Swing morning | trig_01XWzEZhiHDXN43gpaBRqyJq | `55 11,12 * * 1-5` | **enabled 2026-10-15** |
+| Swing evening | trig_01YTJu3ie5JhaRq8cFyM6K7J | `0 21,22 * * 1-5` | **enabled 2026-10-15** |
+| Long-term weekly | trig_01M4eaTQozo6tVqgGxVoquGE | `0 22,23 * * 0` | **enabled 2026-10-15** |
 | Manual test | trig_01RHdKcx45Uou4bJjDnpKCjv | one-off | prompt swapped per test |
 
 Each routine fires at both UTC hours; `should-run.ts` keeps the one inside the New York window, so
