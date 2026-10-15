@@ -72,6 +72,19 @@ same name for the same idea: "IV crush", not "the IV collapse after earnings"), 
 (options, macro, rates, valuation, technical, risk, earnings or other) and a one- or two-sentence
 `explanation`.
 
+## Options habits to reinforce
+
+Brendan asked for standing reminders about these. Whenever an **open option position** (in
+`open_trades`), or an option idea you're pitching, is **within 10 trading days of expiry**, add a
+short line to its entry covering:
+- **Close a spread as one order**, at a limit near the mid. If you ever leg out, buy back the
+  *sold* leg first; never sell the bought leg while still short the other (that leaves a naked
+  short).
+- **Close before expiration day**, ideally a day or two early. An in-the-money long option is
+  usually auto-exercised (e.g. 100 shares × the strike), and a short leg can be assigned.
+
+Keep it to one or two lines. He knows the why; this is the checklist.
+
 ## Brendan's real holdings
 
 `agent-context.ts` returns his holdings, each with ticker, shares, cost basis, account (Roth IRA
