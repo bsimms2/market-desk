@@ -2,6 +2,7 @@ import React from "react";
 import { Text, View } from "react-native";
 import { fmtPct, fmtPrice, holdingValue, portfolioTotals, type Holding } from "@desk/core";
 import { useData } from "../db/data";
+import { latestPrices } from "../db/quotes";
 import { Button, Card, Empty, Pill, PressCard, Row, Screen, Signed, Stat } from "../components/ui";
 import type { PortfolioProps } from "../nav";
 import { space, useTheme } from "../theme";
@@ -11,7 +12,23 @@ const signedMoney = (n: number | null) => (n == null ? "—" : (n > 0 ? "+" : n 
 
 export function PortfolioScreen({ navigation }: PortfolioProps<"PortfolioList">) {
   const { font } = useTheme();
-  const { holdings } = useData();
+  const { holdings, setHoldingPrices } = useData();
+  const [busy, setBusy] = React.useState(false);
+  const [msg, setMsg] = React.useState<string | null>(null);
+
+  async function refreshPrices() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const prices = await latestPrices([...new Set(holdings.filter((h) => h.active).map((h) => h.ticker))]);
+      const n = await setHoldingPrices(prices);
+      setMsg(`Updated ${n} price${n === 1 ? "" : "s"}.`);
+    } catch (e) {
+      setMsg(`Couldn't refresh: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
   const active = holdings.filter((h) => h.active);
   const inactive = holdings.filter((h) => !h.active);
   const tot = portfolioTotals(holdings);
@@ -33,7 +50,11 @@ export function PortfolioScreen({ navigation }: PortfolioProps<"PortfolioList">)
           {tot.incomplete} holding{tot.incomplete === 1 ? "" : "s"} left out of the totals (missing cost or price).
         </Text>
       ) : null}
-      <Button title="+ Add holding" kind="secondary" onPress={() => navigation.navigate("HoldingEdit", {})} style={{ marginBottom: space.md }} />
+      <Row style={{ marginBottom: space.md, justifyContent: "flex-start", flexWrap: "wrap" }}>
+        <Button title="+ Add holding" kind="secondary" onPress={() => navigation.navigate("HoldingEdit", {})} />
+        {active.length ? <Button title="↻ Refresh prices" kind="ghost" onPress={() => void refreshPrices()} busy={busy} /> : null}
+      </Row>
+      {msg ? <Text style={[font.small, { marginBottom: space.md }]}>{msg}</Text> : null}
       {active.length === 0 ? (
         <Empty title="No holdings yet" hint="Add what you own so the briefings can talk about it." />
       ) : (

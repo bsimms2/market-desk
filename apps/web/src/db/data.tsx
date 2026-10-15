@@ -19,6 +19,7 @@ interface Data {
   deleteTrade: (id: string) => Promise<void>;
   saveHolding: (draft: HoldingDraft, id?: string) => Promise<Holding>;
   deleteHolding: (id: string) => Promise<void>;
+  setHoldingPrices: (prices: { ticker: string; price: number; on: string }[]) => Promise<number>;
 }
 
 const Ctx = React.createContext<Data | null>(null);
@@ -180,9 +181,29 @@ export function DataProvider({
     setState((s) => s && { ...s, holdings: s.holdings.filter((h) => h.id !== id) });
   }, []);
 
+  const setHoldingPrices = React.useCallback(async (prices: { ticker: string; price: number; on: string }[]) => {
+    let n = 0;
+    for (const p of prices) {
+      const { error } = await supabase.from("holdings").update({ last_price: p.price, last_price_on: p.on }).eq("ticker", p.ticker).eq("active", true);
+      if (!error) n++;
+    }
+    setState((s) => {
+      if (!s) return s;
+      const by = new Map(prices.map((p) => [p.ticker, p]));
+      return {
+        ...s,
+        holdings: s.holdings.map((h) => {
+          const p = h.active ? by.get(h.ticker) : undefined;
+          return p ? { ...h, last_price: p.price, last_price_on: p.on } : h;
+        }),
+      };
+    });
+    return n;
+  }, []);
+
   if (!state) return <>{fallback}</>;
   return (
-    <Ctx.Provider value={{ ...state, refresh, saveTrade, deleteTrade, saveHolding, deleteHolding }}>
+    <Ctx.Provider value={{ ...state, refresh, saveTrade, deleteTrade, saveHolding, deleteHolding, setHoldingPrices }}>
       {children}
     </Ctx.Provider>
   );

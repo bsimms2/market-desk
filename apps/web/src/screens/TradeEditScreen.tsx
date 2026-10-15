@@ -12,6 +12,7 @@ import {
   type TradeStatus,
 } from "@desk/core";
 import { useData, type TradeDraft } from "../db/data";
+import { optionPrice, stockPrice } from "../db/quotes";
 import { Alert } from "../components/dialog";
 import { Button, Card, DateInput, Field, Input, isIsoDate, NumInput, Pair, Row, Screen, SectionTitle, Segmented, Signed } from "../components/ui";
 import type { JournalProps } from "../nav";
@@ -76,6 +77,30 @@ export function TradeEditScreen({ navigation, route }: JournalProps<"TradeEdit">
   const set = <K extends keyof Form>(k: K) => (v: Form[K]) => setF((p) => ({ ...p, [k]: v }));
 
   /** Status taps fill in today's date where it's obviously wanted. */
+  const [live, setLive] = React.useState<{ entry?: string; exit?: string; busy?: "entry" | "exit" }>({});
+
+  /** Fill entry/exit with the current price: the stock, or the option/spread named in Structure. */
+  async function fetchLive(field: "entry" | "exit") {
+    const ticker = f.ticker.trim().toUpperCase();
+    if (!ticker) return;
+    setLive((l) => ({ ...l, busy: field, [field]: undefined }));
+    try {
+      let got = f.instrument === "option" ? await optionPrice(f.structure, ticker) : await stockPrice(ticker);
+      let fill = true;
+      if (!got) {
+        // Couldn't read the option structure: show the stock price for reference, don't fill.
+        const ref = await stockPrice(ticker);
+        got = { price: ref.price, note: `Couldn't read the option from Structure (try "Oct 30 220/230 call spread"). For reference: ${ref.note}. Type the premium you'd pay.` };
+        fill = false;
+      }
+      if (fill) setF((p) => ({ ...p, [field === "entry" ? "entry_price" : "exit_price"]: got!.price.toFixed(2) }));
+      setLive((l) => ({ ...l, busy: undefined, [field]: got!.note }));
+    } catch (e) {
+      setLive((l) => ({ ...l, busy: undefined, [field]: `Couldn't get a price: ${e instanceof Error ? e.message : String(e)}` }));
+    }
+  }
+
+  /** Status taps fill in today's date, and the live price when the field is empty. */
   function setStatus(s: TradeStatus) {
     setF((p) => ({
       ...p,
@@ -83,6 +108,8 @@ export function TradeEditScreen({ navigation, route }: JournalProps<"TradeEdit">
       opened_on: (s === "open" || s === "closed") && !p.opened_on ? todayIso() : p.opened_on,
       closed_on: s === "closed" && !p.closed_on ? todayIso() : p.closed_on,
     }));
+    if (s === "open" && !f.entry_price.trim()) void fetchLive("entry");
+    if (s === "closed" && !f.exit_price.trim()) void fetchLive("exit");
   }
 
   if (id && !existing) {
@@ -222,9 +249,11 @@ export function TradeEditScreen({ navigation, route }: JournalProps<"TradeEdit">
         <Pair>
           <Field label={f.instrument === "option" ? "Entry (premium)" : "Entry price"}>
             <NumInput value={f.entry_price} onChangeText={set("entry_price")} placeholder="0.00" />
+            <LiveButton busy={live.busy === "entry"} note={live.entry} onPress={() => void fetchLive("entry")} disabled={!f.ticker.trim()} />
           </Field>
           <Field label={f.instrument === "option" ? "Exit (premium)" : "Exit price"}>
             <NumInput value={f.exit_price} onChangeText={set("exit_price")} placeholder="0.00" />
+            <LiveButton busy={live.busy === "exit"} note={live.exit} onPress={() => void fetchLive("exit")} disabled={!f.ticker.trim()} />
           </Field>
         </Pair>
         <Pair>
@@ -296,5 +325,15 @@ export function TradeEditScreen({ navigation, route }: JournalProps<"TradeEdit">
         </Row>
       </Row>
     </Screen>
+  );
+}
+
+function LiveButton({ busy, note, onPress, disabled }: { busy: boolean; note?: string; onPress: () => void; disabled?: boolean }) {
+  const { c, font } = useTheme();
+  return (
+    <>
+      <Button title={busy ? "Getting price…" : "↻ Live price"} kind="ghost" onPress={onPress} busy={busy} disabled={disabled} style={{ alignSelf: "flex-start", paddingHorizontal: 0, minHeight: 36, paddingVertical: 6 }} />
+      {note ? <Text style={[font.small, { color: note.startsWith("Couldn't") ? c.warn : c.textDim }]}>{note}</Text> : null}
+    </>
   );
 }
