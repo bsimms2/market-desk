@@ -141,9 +141,15 @@ or Brokerage) and, when he's written one, his own `thesis` ("why I own it").
      upcoming expiries and the **implied move** (the at-the-money straddle as a % of the price) for
      each. `--expiry YYYY-MM-DD --spread 220/230C` (or `…P`) prices a debit spread: cost per
      contract, max profit, breakeven and reward:risk. `--strikes 210-230` lists the chain.
+     **Use only expiry dates that `options.ts` lists.** Monthly options expire on the third
+     *Friday*: write "Nov 20", never "Nov 21".
      **Every options angle must use these numbers.** Name the exact contracts, the debit and the
      breakeven, and compare the implied move with what the idea needs. That's how Brendan
      learns what options actually cost.
+     Also give a one-line **sizing note**: the max loss of one contract as a % of his portfolio
+     (sum of `shares × latest price` across holdings). Say so when it's above about 2%, the usual
+     single-trade risk guideline, and suggest a narrower spread or a smaller position. It's paper,
+     but the habit is the point.
 
    If one of these errors, carry on with the others and note the gap in the briefing.
 6. **Research** the story further with web searches and page fetches (see your task prompt).

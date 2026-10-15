@@ -100,6 +100,19 @@ async function cboeChain(ticker: string) {
 
 const occOf = (tk: string, exp: string, t: string, k: string) =>
   `${tk.toUpperCase()}${exp.slice(2, 4)}${exp.slice(5, 7)}${exp.slice(8, 10)}${t.toUpperCase()}${String(Math.round(Number(k) * 1000)).padStart(8, "0")}`;
+/** The listed expiry closest to `want`, if within 3 days (ideas sometimes say "Nov 21" for the Friday Nov 20 expiry). */
+function snapExpiry(options: any[], tk: string, want: string): string {
+  const listed = [...new Set(options.map((o: any) => String(o.option).slice(tk.length, tk.length + 6)))].map((d) => `20${d.slice(0, 2)}-${d.slice(2, 4)}-${d.slice(4, 6)}`);
+  const t = Date.parse(want);
+  let best = want;
+  let bestGap = Infinity;
+  for (const d of listed) {
+    const gap = Math.abs(Date.parse(d) - t) / 86_400_000;
+    if (gap < bestGap) [best, bestGap] = [d, gap];
+  }
+  return bestGap <= 3 ? best : want;
+}
+
 const midOf = (o: any) => (o.bid > 0 && o.ask > 0 ? (o.bid + o.ask) / 2 : o.last_trade_price);
 
 async function singleQuote(spec: string) {
@@ -107,14 +120,16 @@ async function singleQuote(spec: string) {
   if (!m) throw new Error("option format: TICKER:YYYY-MM-DD:STRIKE{C|P}");
   const [, tk, exp, k, t] = m;
   const j = await cboeChain(tk!);
-  const o = (j.data.options as any[]).find((x) => x.option === occOf(tk!, exp!, t!, k!));
+  const used = snapExpiry(j.data.options, tk!.toUpperCase(), exp!);
+  const o = (j.data.options as any[]).find((x) => x.option === occOf(tk!, used, t!, k!));
   if (!o) throw new Error(`no ${t!.toUpperCase()} at ${k} expiring ${exp}`);
   const mid = r2(midOf(o));
   return {
     option: {
       contract: o.option,
       type: t!.toUpperCase() === "C" ? "call" : "put",
-      expiry: exp,
+      expiry: used,
+      ...(used !== exp ? { requested_expiry: exp } : {}),
       strike: Number(k),
       bid: o.bid,
       ask: o.ask,
@@ -139,7 +154,8 @@ async function spreadQuote(spec: string) {
   });
   if (!res.ok) throw new Error(`CBOE ${res.status}`);
   const j = await res.json();
-  const occ = (k: string) => `${tk!.toUpperCase()}${exp!.slice(2, 4)}${exp!.slice(5, 7)}${exp!.slice(8, 10)}${t!.toUpperCase()}${String(Math.round(Number(k) * 1000)).padStart(8, "0")}`;
+  const used = snapExpiry(j.data.options, tk!.toUpperCase(), exp!);
+  const occ = (k: string) => occOf(tk!, used, t!, k);
   const find = (k: string) => (j.data.options as any[]).find((o) => o.option === occ(k));
   const L = find(lk!);
   const S = find(sk!);
@@ -149,7 +165,8 @@ async function spreadQuote(spec: string) {
   const leg = (o: any) => ({ contract: o.option, bid: o.bid, ask: o.ask, mid: r2(mid(o)), iv_pct: r2(o.iv * 100), delta: r2(o.delta) });
   return {
     spread: {
-      expiry: exp,
+      expiry: used,
+      ...(used !== exp ? { requested_expiry: exp } : {}),
       type: t!.toUpperCase() === "C" ? "call" : "put",
       long: leg(L),
       short: leg(S),
