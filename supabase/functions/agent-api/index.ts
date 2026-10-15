@@ -157,7 +157,9 @@ async function publish(req: Request): Promise<Response> {
   for (const c of concepts ?? []) {
     const term = c.term.trim().replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9)]+$/g, "");
     const key = term.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-    const found = await db.from("concepts").select("id,times_explained").eq("term_key", key).maybeSingle();
+    // Singular and plural are the same concept ("credit default swap(s)", "debit spread(s)").
+    const variants = [...new Set([key, key.endsWith("s") ? key.slice(0, -1) : key + "s"])];
+    const found = await db.from("concepts").select("id,times_explained").in("term_key", variants).order("created_at").limit(1).maybeSingle();
     if (found.error) continue;
     const res = found.data
       ? await db.from("concepts").update({ times_explained: found.data.times_explained + 1, last_explained: briefing.date }).eq("id", found.data.id)
