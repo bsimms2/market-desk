@@ -2,7 +2,9 @@ import { execFileSync } from "node:child_process";
 
 const DEFAULT_URL = "https://lomsjeahhiyforjnwbtu.supabase.co/functions/v1/agent-api";
 
-export function apiUrl(action: "context" | "publish"): string {
+export type DeskAction = "context" | "publish" | "bot_context" | "bot_open" | "bot_decide" | "bot_close" | "bot_adjust" | "bot_check";
+
+export function apiUrl(action: DeskAction): string {
   return (process.env.DESK_API_URL ?? DEFAULT_URL) + "?action=" + action;
 }
 
@@ -15,7 +17,7 @@ export function apiUrl(action: "context" | "publish"): string {
  * arrived without the header and got 401. Locally, DESK_AGENT_TOKEN from .env
  * is sent instead.
  */
-export function deskRequest(action: "context" | "publish", body?: string): { status: number; text: string } {
+export function deskRequest(action: DeskAction, body?: string): { status: number; text: string } {
   const args = ["-sS", "--max-time", "60", "-w", "\n%{http_code}", "-H", "content-type: application/json"];
   const t = process.env.DESK_AGENT_TOKEN;
   if (t) args.push("-H", `x-desk-token: ${t}`);

@@ -19,6 +19,7 @@ export type PortfolioStackParamList = {
 
 export type TabParamList = {
   Today: undefined;
+  Live: undefined;
   BriefingsTab: NavigatorScreenParams<BriefingsStackParamList>;
   JournalTab: NavigatorScreenParams<JournalStackParamList>;
   PortfolioTab: NavigatorScreenParams<PortfolioStackParamList>;

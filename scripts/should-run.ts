@@ -3,16 +3,16 @@
 //   HOLIDAY <kind> <date> <name>  weekday task on an NYSE holiday: post the one-line note, nothing else
 //   SKIP <reason>                 stop now, post nothing
 //
-//   node scripts/should-run.ts swing-morning|swing-evening|long-weekly [--force]
+//   node scripts/should-run.ts swing-morning|swing-evening|long-weekly|trader-morning|trader-afternoon [--force]
 //
 // Why: cloud routines are scheduled in UTC, so each one fires at both UTC times
 // that can land on its New York time (EDT and EST). This keeps the one that's
 // inside the New York window, so daylight-saving changes need no edits.
 // --force skips the time-window check (manual test runs), not the holiday check.
 
-type Kind = "swing-morning" | "swing-evening" | "long-weekly";
+type Kind = "swing-morning" | "swing-evening" | "long-weekly" | "trader-morning" | "trader-afternoon";
 
-// Window in New York local time, minutes after midnight. Targets: 7:55, 17:00, Sun 18:00.
+// Window in New York local time, minutes after midnight. Targets: 7:55, 17:00, Sun 18:00; trader 10:00 and 14:30.
 // The two UTC fires land exactly one hour apart, so a window under an hour wide
 // (here: 25 min before to 35 min after the target) admits exactly one of them,
 // with room for the scheduler starting a few minutes late.
@@ -20,6 +20,9 @@ const WINDOWS: Record<Kind, { from: number; to: number; days: number[] }> = {
   "swing-morning": { from: 7 * 60 + 30, to: 8 * 60 + 30, days: [1, 2, 3, 4, 5] },
   "swing-evening": { from: 16 * 60 + 35, to: 17 * 60 + 35, days: [1, 2, 3, 4, 5] },
   "long-weekly": { from: 17 * 60 + 35, to: 18 * 60 + 35, days: [0] },
+  // The paper trader: 10:00 (after the open settles) and 14:30.
+  "trader-morning": { from: 9 * 60 + 35, to: 10 * 60 + 35, days: [1, 2, 3, 4, 5] },
+  "trader-afternoon": { from: 14 * 60 + 5, to: 15 * 60 + 5, days: [1, 2, 3, 4, 5] },
 };
 
 // NYSE full-day closures. Extend before 2028 (the script warns when the list runs out).
@@ -84,7 +87,7 @@ const isMain = process.argv[1] && /should-run\.ts$/.test(process.argv[1].replace
 if (isMain) {
   const kind = process.argv[2] as Kind;
   if (!(kind in WINDOWS)) {
-    console.log("SKIP usage: node scripts/should-run.ts swing-morning|swing-evening|long-weekly [--force]");
+    console.log("SKIP usage: node scripts/should-run.ts swing-morning|swing-evening|long-weekly|trader-morning|trader-afternoon [--force]");
     process.exitCode = 2;
   } else {
     if (Number(nyNow().date.slice(0, 4)) > LAST_LISTED_YEAR) console.error("WARNING: NYSE holiday list in scripts/should-run.ts has run out; verify holidays by search and extend it.");

@@ -67,3 +67,24 @@ export async function latestPrices(tickers: string[]): Promise<{ ticker: string;
   }
   return out;
 }
+
+/** Raw live quotes from the quote function (price, session, day %, ...), keyed by symbol. */
+export interface LiveQuote {
+  symbol: string;
+  price?: number;
+  session?: "pre" | "regular" | "post" | "closed";
+  day_pct?: number;
+  prev_close?: number;
+  as_of?: string;
+  error?: string;
+}
+
+export async function liveQuotes(tickers: string[]): Promise<Map<string, LiveQuote>> {
+  const out = new Map<string, LiveQuote>();
+  const list = [...new Set(tickers)];
+  for (let i = 0; i < list.length; i += 25) {
+    const { quotes } = await call(`symbols=${encodeURIComponent(list.slice(i, i + 25).join(","))}`);
+    for (const q of (quotes ?? []) as LiveQuote[]) out.set(q.symbol, q);
+  }
+  return out;
+}

@@ -20,6 +20,7 @@ import { Button } from "./src/components/ui";
 import { TabBar } from "./src/components/TabBar";
 import { SignInScreen } from "./src/screens/SignInScreen";
 import { TodayScreen } from "./src/screens/TodayScreen";
+import { LiveScreen } from "./src/screens/LiveScreen";
 import { BriefingsScreen } from "./src/screens/BriefingsScreen";
 import { BriefingDetailScreen } from "./src/screens/BriefingDetailScreen";
 import { JournalScreen } from "./src/screens/JournalScreen";
@@ -53,6 +54,7 @@ const linking: LinkingOptions<TabParamList> = {
   config: {
     screens: {
       Today: "",
+      Live: "live",
       BriefingsTab: {
         path: "briefings",
         screens: {
@@ -145,6 +147,7 @@ function Tabs() {
         }}
       >
         <Tab.Screen name="Today" component={TodayScreen} options={{ tabBarIcon: icon("⌂") }} />
+        <Tab.Screen name="Live" component={LiveScreen} options={{ title: "Paper bot", tabBarIcon: icon("◉") }} />
         <Tab.Screen name="BriefingsTab" component={BriefingsNav} options={{ title: "Briefings", headerShown: false, tabBarIcon: icon("▤") }} />
         <Tab.Screen name="JournalTab" component={JournalNav} options={{ title: "Journal", headerShown: false, tabBarIcon: icon("✎") }} />
         <Tab.Screen name="PortfolioTab" component={PortfolioNav} options={{ title: "Portfolio", headerShown: false, tabBarIcon: icon("◔") }} />
