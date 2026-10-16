@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+    <!-- viewport-fit=cover lets safe-area insets (home indicator) reach the tab bar. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <!-- Status bar / browser chrome matches the header card colour in theme.tsx. -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#171b21" />
+    <!-- Add to Home Screen: open full-screen, no Safari toolbar. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <!-- "black", not "black-translucent": with translucent, iOS starts the page under the
+         status bar but sizes it as if it didn't, leaving an unpaintable strip at the bottom. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="apple-mobile-web-app-title" content="Market Desk" />
+    <!-- Scope = the whole site, so in-app navigation never opens a Safari sheet. -->
+    <link rel="manifest" href="/market-desk/manifest.json" />
+    <title>Market Desk</title>
+    <style id="expo-reset">
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        /* Matches theme.tsx bg, so Safari's toolbar tint blends with the app. */
+        background: #f4f6f8;
+      }
+      @media (prefers-color-scheme: dark) {
+        html,
+        body {
+          background: #0f1216;
+        }
+      }
+      /*
+       * Lock the document so iOS can't rubber-band or shift the whole page
+       * (seen on iPad: scrollY -64 with the app pushed down, leaving a strip).
+       * Only the app's own scroll views scroll.
+       */
+      html {
+        overscroll-behavior: none;
+      }
+      body {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        overflow: hidden;
+        overscroll-behavior: none;
+      }
+      /*
+       * Pin the app to the visible screen. position: fixed + inset 0 tracks
+       * iOS Safari's toolbar and fills the Home Screen app edge to edge (a
+       * 100%-tall #root ran under Safari's toolbar; a measured height left a
+       * gap in Home Screen mode). Safe-area padding is applied inside the app.
+       */
+      #root {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        display: flex;
+      }
+    </style>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+  <script src="/market-desk/_expo/static/js/web/index-d3ecbb3a24e35fa55bd24357dc774df1.js" defer></script>
+</body>
+</html>
