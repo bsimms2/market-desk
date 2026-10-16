@@ -158,9 +158,8 @@ fill over `max_price` keeps it waiting. Pending orders expire after `good_until`
 cancelled if the research desk later marks the idea invalidated / entry_missed / stale.
 Agent: `bot.ts order resting.json`, `bot.ts cancel <id> "why"`. Dashboard: "Waiting to buy".
 
-Open item: `pg_net` sits in `public` (security advisor warning). The fix is
-`drop extension pg_net; create extension pg_net schema extensions;` (the cron job keeps
-working: it calls `net.http_post`). It needs Brendan's approval because it drops.
+`pg_net` lives in the `extensions` schema (Brendan moved it 2026-10-16 via the SQL editor;
+the cron job calls `net.http_post`, which doesn't depend on the extension's schema).
 
 Trader routines (environment "Default", repo source, claude-sonnet-5-5, tools Bash/Read/Write/
 Glob/Grep, **WebSearch/WebFetch disallowed**; only the Claude_Code_Remote connector):
