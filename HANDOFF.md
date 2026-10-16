@@ -117,3 +117,51 @@ for `quotes.ts`). Email notification is skipped (no Resend); runs use PushNotifi
   `*.bls.gov`, `*.federalreserve.gov` and `api.stlouisfed.org`.
 - **Blocked:** Reuters (WebFetch refuses it), plus CNBC and Nasdaq article pages. AP and BLS
   release pages return 403.
+
+## Paper trading agent ("paper bot", 2026-10-16)
+
+A **separate trader agent** runs a simulated **$5,000** account on its own (no approvals),
+taking, skipping or waiting on the research desk's swing ideas. Goal: find out whether the
+ideas make money before Brendan funds a **$2,500 Robinhood "Agentic" account** (live mode is
+NOT built; see "Going live" below). Still paper only: nothing here touches a brokerage.
+
+| What | Where |
+|---|---|
+| Rules, order validation, P/L, scorecard (tested) | `packages/desk/src/bot.ts`, copied to `supabase/functions/agent-api/bot-rules.ts` by `tools/sync-payload.sh` (a test checks they match) |
+| Server actions | `supabase/functions/agent-api/bot.ts`: `?action=bot_context`, `bot_open` (`"preview": true` = price + rule check only), `bot_decide`, `bot_close`, `bot_adjust`, `bot_check` |
+| Market data helpers | `supabase/functions/_shared/market.ts` (Yahoo stock quotes, CBOE chains), shared with `quote` |
+| Tables | `bot_account` (one row; status/kill switch, `started_on` + `spy_start` set by the first trade), `bot_positions`, `bot_decisions`, `bot_marks` (daily equity + SPY) |
+| Checker | pg_cron job `bot-check`, `*/10 13-21 * * 1-5` UTC, calls `bot_check` with the token from Vault secret `desk_agent_token` |
+| Trader CLI | `scripts/bot.ts context|preview|open|decide|close|adjust|check` |
+| Trader prompt | `agent/prompts/trader.md` (does NOT use `_rules.md`) |
+| Dashboard | "Paper bot" tab, `apps/web/src/screens/LiveScreen.tsx` + `src/db/bot.ts` |
+
+Rules (all enforced server-side, as % of current equity): stock ≤ 20%, options cost (= max
+loss, debit only) ≤ 6%, ≤ 6 open, one per ticker, options ≥ 7 days to expiry, `exit_by` before
+expiry, stop/target are **underlying** prices, stops only tighten, kill switch at −25% pauses
+new trades (Brendan resumes from the tab). Fills: stock last price ± 0.05%; options at the
+CBOE ask/bid (spreads: long ask − short bid to open). Regular session only. Bearish = puts/put
+spreads (no short stock). Each position is tagged `fits_live` ($500 stock / $150 options at the
+$2,500 pot) and `live_eligible` (spreads are not, until we know the Agentic account allows them).
+
+Checker behaviour: in the regular session it marks every open position, closes on stop, target,
+`exit_by` (from 3:30 PM ET that day) or expiry day; after 4 PM on a trading day it upserts the
+day's `bot_marks` row. It also flips the kill switch.
+
+Trader routines (environment "Default", repo source, claude-sonnet-5-5, tools Bash/Read/Write/
+Glob/Grep, **WebSearch/WebFetch disallowed**; only the Claude_Code_Remote connector):
+
+| Routine | ID | Cron (UTC) | Gate |
+|---|---|---|---|
+| Paper trader (morning) | trig_01Q3ZWceEmd7dLFi3NTQvbdU | `0 14,15 * * 1-5` (10:00 ET) | `trader-morning` |
+| Paper trader (afternoon) | trig_01DDZKAP6vM9UGmoUNL4j98k | `30 18,19 * * 1-5` (2:30 PM ET) | `trader-afternoon` |
+
+Isolation: the trader never reads the web (news, WebFetch); the research agent's idea text is
+treated as data. Both agents share the `x-desk-token` (the network secret only covers
+`/functions/v1/agent-api`), so the separation is by prompt and tool list, not by credential.
+
+**Going live (not built).** Robinhood's official Trading MCP (`https://agent.robinhood.com/mcp/trading`,
+beta since 2026-05-27) trades only in a dedicated non-IRA "Agentic" account but can READ all of
+Brendan's Robinhood accounts (fine: his other money is at E*Trade). Options are "rolling out";
+spreads need Level 3 = margin. Setup/OAuth is desktop-only, and whether a cloud routine can use it
+is unknown: test that first. Brendan's plan: per-trade approval at first in live mode.
