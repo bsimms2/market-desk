@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { accountTotals, checkRules, exitHit, fitsLive, intrinsic, killSwitchHit, parseSpec, scorecard, validateOrder, type BotOrder } from "../src";
+import { accountTotals, checkRules, exitHit, fitsLive, intrinsic, killSwitchHit, parseSpec, scorecard, triggerHit, validateOrder, validateRestingOrder, type BotOrder } from "../src";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const IDEA = "54f7bf35-2409-4d6c-936e-b1ac70175f9e";
@@ -53,6 +53,30 @@ describe("checkRules", () => {
   it("options must have time left and exit before expiry", () => {
     const r = checkRules({ ...spread, spec: "NVDA:2026-10-23:220/230C", exit_by: "2026-10-23" }, { price: 1, underlying: 215 }, acct);
     expect(r.errors.join("\n")).toMatch(/under 7 days[\s\S]*before the expiry/);
+  });
+});
+
+describe("resting orders", () => {
+  const rest = { ...stock, trigger_type: "at_or_below", trigger_price: 210, good_until: "2026-10-23" };
+  it("accepts a pullback buy between stop and target", () => {
+    expect(validateRestingOrder(rest, "2026-10-19", 216).ok).toBe(true);
+  });
+  it("refuses a trigger outside stop/target, one already hit, and a late good_until", () => {
+    const r = validateRestingOrder({ ...rest, trigger_price: 199, good_until: "2026-11-07" }, "2026-10-19", 216);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.errors.join("\n")).toMatch(/before exit_by[\s\S]*between the stop/);
+    const now = validateRestingOrder(rest, "2026-10-19", 209);
+    expect(now.ok).toBe(false);
+    if (!now.ok) expect(now.errors.join()).toMatch(/open it now/);
+  });
+  it("triggers on the right side", () => {
+    expect(triggerHit("at_or_below", 210, 209.9)).toBe(true);
+    expect(triggerHit("at_or_below", 210, 210.1)).toBe(false);
+    expect(triggerHit("at_or_above", 230, 230)).toBe(true);
+  });
+  it("bearish triggers sit between target (low) and stop (high)", () => {
+    const put = { ...rest, kind: "put", spec: "NVDA:2026-11-20:200P", stop: 240, target: 190, trigger_type: "at_or_above", trigger_price: 225 };
+    expect(validateRestingOrder(put, "2026-10-19", 216).ok).toBe(true);
   });
 });
 

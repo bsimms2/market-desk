@@ -145,8 +145,22 @@ spreads (no short stock). Each position is tagged `fits_live` ($500 stock / $150
 $2,500 pot) and `live_eligible` (spreads are not, until we know the Agentic account allows them).
 
 Checker behaviour: in the regular session it marks every open position, closes on stop, target,
-`exit_by` (from 3:30 PM ET that day) or expiry day; after 4 PM on a trading day it upserts the
-day's `bot_marks` row. It also flips the kill switch.
+`exit_by` (from 3:30 PM ET that day) or expiry day, then fills **resting orders** whose trigger
+the underlying has reached; after 4 PM on a trading day it upserts the day's `bot_marks` row.
+It also flips the kill switch.
+
+**Resting orders** (`bot_orders`, added 2026-10-16 so a "wait for $148" doesn't miss the dip
+between the trader's two runs): an order plus `trigger_type` (at_or_below / at_or_above),
+`trigger_price` (underlying, between stop and target), optional `max_price` per share, and
+`good_until` (before `exit_by`). One pending per ticker. On trigger the checker runs the same
+`fill()` as `bot_open` (price at that look, full rule check); a refusal marks it `rejected`, a
+fill over `max_price` keeps it waiting. Pending orders expire after `good_until`, and are
+cancelled if the research desk later marks the idea invalidated / entry_missed / stale.
+Agent: `bot.ts order resting.json`, `bot.ts cancel <id> "why"`. Dashboard: "Waiting to buy".
+
+Open item: `pg_net` sits in `public` (security advisor warning). The fix is
+`drop extension pg_net; create extension pg_net schema extensions;` (the cron job keeps
+working: it calls `net.http_post`). It needs Brendan's approval because it drops.
 
 Trader routines (environment "Default", repo source, claude-sonnet-5-5, tools Bash/Read/Write/
 Glob/Grep, **WebSearch/WebFetch disallowed**; only the Claude_Code_Remote connector):

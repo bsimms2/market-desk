@@ -65,14 +65,27 @@ Bearish ideas use puts or put spreads (no short stock). Debit spreads only (no s
    verdict this run:
    - **take**: open it. Choose the structure yourself; it doesn't have to match the idea's.
    - **skip**: not worth it (say why).
-   - **wait**: worth it, but not at this price or not yet. Say the exact condition, e.g.
-     "wait for a pullback into $146–150" or "wait until after Tuesday's CPI".
+   - **resting order**: worth it at a specific price you're not at yet. Place an order that
+     waits for it (`bot.ts order`, see below). The checker looks every 10 minutes all session and
+     fills it the moment the price gets there, so you don't miss the window between your runs.
+     Use this for "buy the pullback to $148" or "buy the breakout above $160".
+   - **wait**: worth it, but the condition isn't a price ("wait until after Tuesday's CPI",
+     "see how the sector opens tomorrow"). Say the exact condition. Look again next run.
    Skip, without needing more thought, any idea the desk marked `invalidated`, `entry_missed` or
    `stale`, and any that's already past its "skip above" level.
+   An idea with a `bot_pending_order` already has a resting order: leave it, or cancel it
+   (`bot.ts cancel <order_id> "why"`) if the setup has changed, e.g. the catalyst passed or a
+   better structure is now available.
 6. **For each take:** write the order to `/tmp/order.json`, run `bot.ts preview /tmp/order.json`,
    read the price, cost and any rule errors, adjust if needed, then `bot.ts open /tmp/order.json`.
+   **For each resting order:** write it to `/tmp/resting.json` and run `bot.ts order
+   /tmp/resting.json` (the server refuses it if the price is already past the trigger: then
+   `open` it now instead, if it's still a good trade).
    Record skips and waits together with `bot.ts decide /tmp/decisions.json`.
-7. **Notify.** Send one short push notification: what you opened, closed or adjusted, how many
+7. **Review `pending_orders`** from the context as well: cancel any whose reason no longer holds.
+   They expire on their own after `good_until`, and the server cancels them if the research desk
+   marks the idea `invalidated`, `entry_missed` or `stale`.
+8. **Notify.** Send one short push notification: what you opened, closed or adjusted, how many
    you skipped or are waiting on, and the account's equity. E.g. "Paper bot: opened NVDA 220/230C
    spread ($285 risk), skipped CRWV, waiting on SPCX. Equity $5,040 (+0.8%)." If you did nothing,
    still send one line saying so.
@@ -142,4 +155,35 @@ and what would change your mind. For example:
   spreads the stop is above the price and the target below.
 
 Decisions file: `{ "decisions": [{ "idea_id": "…", "ticker": "CRWV", "verdict": "skip", "reasoning": "…" }] }`
-(`verdict` is `skip` or `wait`; a take is recorded by `bot.ts open`).
+(`verdict` is `skip` or `wait`; a take is recorded by `bot.ts open`, a resting order by `bot.ts order`).
+
+## Resting orders
+
+An order plus four fields. It triggers on the **underlying** price, then fills exactly like an
+immediate order: at the ask, checked against every rule at that moment (cash, size, open slots,
+the price still between stop and target). So a stock that gaps straight through your trigger
+*and* your stop gets refused, not bought.
+
+```json
+{
+  "idea_id": "…", "ticker": "SPCX", "kind": "call_spread", "spec": "SPCX:2026-11-13:150/160C",
+  "qty": 1, "stop": 140, "target": 165, "exit_by": "2026-11-12", "reasoning": "…",
+  "trigger_type": "at_or_below",
+  "trigger_price": 148,
+  "max_price": 3.0,
+  "good_until": "2026-10-23"
+}
+```
+
+- `trigger_type`: `at_or_below` (buy a pullback; for puts, buy a breakdown) or `at_or_above`
+  (buy a breakout; for puts, short a bounce into resistance).
+- `trigger_price` must sit between the stop and the target.
+- `max_price` (optional): the most you'll pay per share (options: per-share premium). If the fill
+  would cost more, the order keeps waiting. Use it on options so a volatility jump doesn't make you
+  overpay.
+- `good_until`: the last day it can trigger, before `exit_by`. Keep it short (a few trading days):
+  a setup that takes longer to arrive is usually a different setup.
+- One pending order per ticker, and none for a ticker you already hold. Size it for the account
+  as it will be when it fills; if cash or slots run out first, it gets refused.
+- The checker's look is every 10 minutes, so the fill is the price at that look, not exactly the
+  trigger. That's realistic: a real stop-entry fills at the next available price too.

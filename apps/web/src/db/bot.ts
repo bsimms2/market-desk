@@ -49,9 +49,32 @@ export interface BotDecision {
   date: string;
   idea_id: string | null;
   ticker: string;
-  verdict: "take" | "skip" | "wait" | "rejected";
+  verdict: "take" | "skip" | "wait" | "rejected" | "order" | "cancel";
   reasoning: string;
   position_id: string | null;
+  order_id: string | null;
+}
+
+/** A resting order: buys when the underlying reaches the trigger (the checker looks every 10 min). */
+export interface BotOrder {
+  id: string;
+  created_at: string;
+  idea_id: string | null;
+  ticker: string;
+  kind: BotKind;
+  spec: string | null;
+  qty: number;
+  stop: number;
+  target: number;
+  exit_by: string;
+  reasoning: string;
+  trigger_type: "at_or_below" | "at_or_above";
+  trigger_price: number;
+  max_price: number | null;
+  good_until: string;
+  status: "pending" | "filled" | "cancelled" | "expired" | "rejected";
+  resolved_at: string | null;
+  note: string | null;
 }
 
 export interface BotMark {
@@ -76,22 +99,26 @@ export interface BotData {
   positions: BotPosition[];
   decisions: BotDecision[];
   marks: BotMark[];
+  /** Pending orders, plus the ones resolved in the last 45 days. */
+  orders: BotOrder[];
 }
 
 async function fetchBot(): Promise<BotData> {
   const since = new Date(Date.now() - 45 * 86_400_000).toISOString().slice(0, 10);
-  const [a, p, d, m] = await Promise.all([
+  const [a, p, d, m, o] = await Promise.all([
     supabase.from("bot_account").select("*").eq("id", 1).single(),
     supabase.from("bot_positions").select("*").order("created_at", { ascending: false }),
     supabase.from("bot_decisions").select("*").gte("date", since).order("created_at", { ascending: false }),
     supabase.from("bot_marks").select("*").order("date"),
+    supabase.from("bot_orders").select("*").or(`status.eq.pending,created_at.gte.${since}`).order("created_at", { ascending: false }),
   ]);
-  const err = a.error ?? p.error ?? d.error ?? m.error;
+  const err = a.error ?? p.error ?? d.error ?? m.error ?? o.error;
   if (err) throw new Error(err.message);
   return {
     account: { ...(a.data as any), starting_cash: Number(a.data.starting_cash), live_pot: Number(a.data.live_pot), spy_start: num(a.data.spy_start) },
     positions: (p.data ?? []).map(normPosition),
     decisions: (d.data ?? []) as BotDecision[],
+    orders: (o.data ?? []).map((r: any) => ({ ...r, qty: Number(r.qty), stop: Number(r.stop), target: Number(r.target), trigger_price: Number(r.trigger_price), max_price: num(r.max_price) })),
     marks: (m.data ?? []).map((r: any) => ({ date: r.date, equity: Number(r.equity), cash: Number(r.cash), open_value: Number(r.open_value), spy: num(r.spy) })),
   };
 }
@@ -117,7 +144,12 @@ export function useBot() {
   }, []);
 
   const tickers = React.useMemo(
-    () => ["SPY", ...(data?.positions.filter((p) => p.status === "open").map((p) => p.ticker) ?? [])].join(","),
+    () =>
+      [
+        "SPY",
+        ...(data?.positions.filter((p) => p.status === "open").map((p) => p.ticker) ?? []),
+        ...(data?.orders.filter((o) => o.status === "pending").map((o) => o.ticker) ?? []),
+      ].join(","),
     [data],
   );
 

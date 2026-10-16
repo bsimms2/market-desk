@@ -157,6 +157,64 @@ export function validateOrder(body: unknown): Result<BotOrder> {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Resting orders: an order that waits for the underlying to reach a trigger price.
+// The checker looks every 10 minutes during the session; when the trigger is met it
+// prices and checks the order exactly like an immediate one (so a gap through the
+// stop gets refused, not filled).
+
+export type TriggerType = "at_or_below" | "at_or_above";
+
+export interface RestingOrder extends BotOrder {
+  /** at_or_below: buy the pullback. at_or_above: buy the breakout (or, for puts, the breakdown is at_or_below). */
+  trigger_type: TriggerType;
+  /** Underlying price that triggers the order. */
+  trigger_price: number;
+  /** Optional cap on the fill price per share (options: premium). Above it, the order waits. */
+  max_price?: number;
+  /** Last day the order can trigger (YYYY-MM-DD). */
+  good_until: string;
+}
+
+export function triggerHit(type: TriggerType, triggerPrice: number, underlying: number): boolean {
+  return type === "at_or_below" ? underlying <= triggerPrice : underlying >= triggerPrice;
+}
+
+export function validateRestingOrder(body: unknown, today: string, underlying?: number): Result<RestingOrder> {
+  const base = validateOrder(body);
+  const e: string[] = base.ok ? [] : [...base.errors];
+  const o = (body ?? {}) as Record<string, unknown>;
+  if (o.trigger_type !== "at_or_below" && o.trigger_type !== "at_or_above") e.push("trigger_type: at_or_below or at_or_above");
+  if (!isNum(o.trigger_price) || o.trigger_price <= 0) e.push("trigger_price: the underlying price that triggers the order");
+  if (o.max_price != null && (!isNum(o.max_price) || o.max_price <= 0)) e.push("max_price: positive, per share (options: premium)");
+  if (!isText(o.good_until) || !ISO.test(o.good_until)) e.push("good_until: YYYY-MM-DD");
+  else {
+    if (o.good_until < today) e.push("good_until is in the past");
+    if (isText(o.exit_by) && !(o.good_until < o.exit_by)) e.push("good_until must be before exit_by");
+  }
+  if (base.ok && isNum(o.trigger_price)) {
+    const v = base.value;
+    // The trigger has to sit between the stop and the target, or the fill would be refused anyway.
+    const [lo, hi] = isBearish(v.kind) ? [v.target, v.stop] : [v.stop, v.target];
+    if (!(lo < o.trigger_price && o.trigger_price < hi)) e.push(`trigger_price must be between the stop and the target (${lo}–${hi})`);
+    if (underlying != null && triggerHit(o.trigger_type as TriggerType, o.trigger_price, underlying)) {
+      e.push(`${v.ticker} is already $${underlying}, past the trigger: open it now instead (bot_open)`);
+    }
+  }
+  if (e.length) return { ok: false, errors: e };
+  const v = (base as { ok: true; value: BotOrder }).value;
+  return {
+    ok: true,
+    value: {
+      ...v,
+      trigger_type: o.trigger_type as TriggerType,
+      trigger_price: o.trigger_price as number,
+      ...(o.max_price != null ? { max_price: o.max_price as number } : {}),
+      good_until: o.good_until as string,
+    },
+  };
+}
+
 export interface AccountState {
   status: "active" | "paused";
   cash: number;

@@ -16,7 +16,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { validatePayload } from "./payload.ts";
-import { botAdjust, botCheck, botClose, botContext, botDecide, botOpen } from "./bot.ts";
+import { botAdjust, botCancel, botCheck, botClose, botContext, botDecide, botOpen, botOrder } from "./bot.ts";
 
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
   auth: { persistSession: false },
@@ -236,11 +236,13 @@ Deno.serve(async (req) => {
     if (req.method === "POST" && action === "publish") return await publish(req);
     if (req.method === "GET" && action === "bot_context") return await botContext(db, json);
     if (req.method === "POST" && action === "bot_open") return await botOpen(db, req, json);
+    if (req.method === "POST" && action === "bot_order") return await botOrder(db, req, json);
+    if (req.method === "POST" && action === "bot_cancel") return await botCancel(db, req, json);
     if (req.method === "POST" && action === "bot_decide") return await botDecide(db, req, json);
     if (req.method === "POST" && action === "bot_close") return await botClose(db, req, json);
     if (req.method === "POST" && action === "bot_adjust") return await botAdjust(db, req, json);
     if (req.method === "POST" && action === "bot_check") return await botCheck(db, json);
-    return json({ error: "use GET ?action=context|bot_context or POST ?action=publish|bot_open|bot_decide|bot_close|bot_adjust|bot_check" }, 404);
+    return json({ error: "use GET ?action=context|bot_context or POST ?action=publish|bot_open|bot_order|bot_cancel|bot_decide|bot_close|bot_adjust|bot_check" }, 404);
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);
   }

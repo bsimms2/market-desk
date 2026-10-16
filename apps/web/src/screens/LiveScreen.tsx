@@ -1,7 +1,7 @@
 import React from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { accountTotals, BOT_KIND_LABEL, BOT_RULES, daysBetween, fmtPct, fmtPrice, isBearish, scorecard, todayIso, type ScoreFilter } from "@desk/core";
-import { useBot, type BotDecision, type BotPosition } from "../db/bot";
+import { useBot, type BotDecision, type BotOrder, type BotPosition } from "../db/bot";
 import type { LiveQuote } from "../db/quotes";
 import { Button, Card, Empty, Pill, Row, Screen, SectionTitle, Segmented, Signed, Stat } from "../components/ui";
 import { Alert } from "../components/dialog";
@@ -13,7 +13,7 @@ const mult = (p: BotPosition) => (p.kind === "stock" ? 1 : 100);
 const nyTime = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" });
 
 /** "Nov 20 220/230 call spread" from "NVDA:2026-11-20:220/230C". */
-function specLabel(p: BotPosition): string {
+function specLabel(p: Pick<BotPosition, "spec" | "qty">): string {
   if (!p.spec) return `${p.qty} ${p.qty === 1 ? "share" : "shares"}`;
   const [, exp, strikes] = p.spec.split(":");
   const d = new Date(exp + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
@@ -33,6 +33,16 @@ const VERDICT: Record<BotDecision["verdict"], { label: string; tone: "good" | "n
   skip: { label: "Skipped", tone: "neutral" },
   wait: { label: "Waiting", tone: "warn" },
   rejected: { label: "Rules said no", tone: "bad" },
+  order: { label: "Resting order", tone: "warn" },
+  cancel: { label: "Cancelled order", tone: "neutral" },
+};
+
+const ORDER_STATUS: Record<BotOrder["status"], { label: string; tone: "good" | "neutral" | "warn" | "bad" }> = {
+  pending: { label: "Waiting", tone: "warn" },
+  filled: { label: "Filled", tone: "good" },
+  cancelled: { label: "Cancelled", tone: "neutral" },
+  expired: { label: "Expired", tone: "neutral" },
+  rejected: { label: "Refused at trigger", tone: "bad" },
 };
 
 const EXIT_LABEL: Record<NonNullable<BotPosition["exit_reason"]>, string> = {
@@ -58,7 +68,9 @@ export function LiveScreen() {
     );
   }
 
-  const { account, positions, decisions, marks } = data;
+  const { account, positions, decisions, marks, orders } = data;
+  const pending = orders.filter((o) => o.status === "pending");
+  const lately = orders.filter((o) => o.status !== "pending" && o.status !== "filled").slice(0, 5);
   const open = positions.filter((p) => p.status === "open");
   const closed = positions.filter((p) => p.status === "closed");
   const live = positions.map((p) => (p.status === "open" ? { ...p, mark: valueNow(p, quotes.get(p.ticker)).value } : p));
@@ -137,6 +149,18 @@ export function LiveScreen() {
       ) : (
         open.map((p) => <PositionCard key={p.id} p={p} q={quotes.get(p.ticker)} />)
       )}
+
+      <SectionTitle right={<Text style={font.small}>checked every 10 min</Text>}>Waiting to buy</SectionTitle>
+      {pending.length === 0 ? (
+        <Card>
+          <Text style={font.dim}>No resting orders. When the agent likes an idea but not the price, it leaves an order that fills when the stock gets there.</Text>
+        </Card>
+      ) : (
+        pending.map((o) => <OrderCard key={o.id} o={o} q={quotes.get(o.ticker)} />)
+      )}
+      {lately.map((o) => (
+        <OrderCard key={o.id} o={o} q={undefined} />
+      ))}
 
       <SectionTitle right={latestDay ? <Text style={font.small}>{fmtDate(latestDay)}</Text> : undefined}>Latest decisions</SectionTitle>
       {latest.length === 0 ? (
@@ -361,6 +385,45 @@ function ClosedCard({ p }: { p: BotPosition }) {
             <Text style={[font.body, { marginTop: space.sm }]}>{p.reasoning}</Text>
           </>
         ) : null}
+      </Card>
+    </Pressable>
+  );
+}
+
+function OrderCard({ o, q }: { o: BotOrder; q: LiveQuote | undefined }) {
+  const { c, font } = useTheme();
+  const [open, setOpen] = React.useState(false);
+  const st = ORDER_STATUS[o.status];
+  const below = o.trigger_type === "at_or_below";
+  const away = q?.price != null ? ((o.trigger_price - q.price) / q.price) * 100 : null;
+  return (
+    <Pressable onPress={() => setOpen((v) => !v)}>
+      <Card style={o.status === "pending" ? undefined : { opacity: 0.75 }}>
+        <Row>
+          <View style={{ flex: 1 }}>
+            <Text style={font.ticker}>
+              {o.ticker}{" "}
+              <Text style={[font.dim, { color: isBearish(o.kind) ? c.bad : c.good, fontWeight: "700" }]}>{isBearish(o.kind) ? "▼" : "▲"} {BOT_KIND_LABEL[o.kind]}</Text>
+            </Text>
+            <Text style={font.small}>{specLabel(o)}</Text>
+          </View>
+          <Pill label={st.label} tone={st.tone} />
+        </Row>
+        <Text style={[font.body, { marginTop: space.sm }]}>
+          Buys if {o.ticker} trades {below ? "at or below" : "at or above"} <Text style={{ fontWeight: "700" }}>{fmtPrice(o.trigger_price)}</Text>
+          {o.max_price != null ? `, paying at most ${fmtPrice(o.max_price)}/share` : ""}
+        </Text>
+        {o.status === "pending" ? (
+          <Text style={[font.small, { marginTop: 2 }]}>
+            {q?.price != null ? `Now ${fmtPrice(q.price)}, ${Math.abs(away!).toFixed(1)}% ${away! < 0 ? "below" : "above"} here · ` : ""}good until {fmtDate(o.good_until)}
+          </Text>
+        ) : o.note ? (
+          <Text style={[font.small, { marginTop: 2 }]}>{o.note}</Text>
+        ) : null}
+        <Text style={[font.small, { marginTop: 2 }]}>
+          Then: stop {fmtPrice(o.stop)}, target {fmtPrice(o.target)}, exit by {fmtDate(o.exit_by)}
+        </Text>
+        {open ? <Text style={[font.body, { marginTop: space.sm }]}>{o.reasoning}</Text> : <Text style={[font.small, { marginTop: space.sm, color: c.accent }]}>Why ›</Text>}
       </Card>
     </Pressable>
   );
