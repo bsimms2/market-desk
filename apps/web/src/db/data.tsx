@@ -1,6 +1,6 @@
 import React from "react";
 import { Platform } from "react-native";
-import type { Briefing, Holding, Trade } from "@desk/core";
+import type { Briefing, Holding, Trade, TradeCheck } from "@desk/core";
 import { supabase } from "./supabase";
 
 /** Briefing list rows leave out body_md; the full text is fetched when one is opened. */
@@ -11,6 +11,8 @@ export type HoldingDraft = Omit<Holding, "id" | "created_at" | "updated_at">;
 
 interface Data {
   trades: Trade[];
+  /** Agent check-ins, newest first (last 60 days). */
+  checks: TradeCheck[];
   holdings: Holding[];
   briefings: BriefingHead[];
   loadedAt: number;
@@ -75,7 +77,8 @@ function normHolding(r: any): Holding {
 }
 
 async function fetchAll() {
-  const [t, h, b] = await Promise.all([
+  const since60 = new Date(Date.now() - 60 * 86_400_000).toISOString().slice(0, 10);
+  const [t, h, b, k] = await Promise.all([
     supabase.from("trades").select("*").order("created_at", { ascending: false }),
     supabase.from("holdings").select("*").order("ticker"),
     supabase
@@ -84,13 +87,15 @@ async function fetchAll() {
       .order("date", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(200),
+    supabase.from("trade_checks").select("id,trade_id,briefing_id,date,verdict,price,note").gte("date", since60).order("date", { ascending: false }).order("created_at", { ascending: false }),
   ]);
-  const err = t.error ?? h.error ?? b.error;
+  const err = t.error ?? h.error ?? b.error ?? k.error;
   if (err) throw new Error(err.message);
   return {
     trades: (t.data ?? []).map(normTrade),
     holdings: (h.data ?? []).map(normHolding),
     briefings: (b.data ?? []) as BriefingHead[],
+    checks: (k.data ?? []).map((c: any) => ({ ...c, price: num(c.price) })) as TradeCheck[],
   };
 }
 
@@ -103,7 +108,7 @@ export function DataProvider({
   fallback: React.ReactNode;
   onError: (msg: string) => void;
 }) {
-  const [state, setState] = React.useState<{ trades: Trade[]; holdings: Holding[]; briefings: BriefingHead[]; loadedAt: number } | null>(null);
+  const [state, setState] = React.useState<{ trades: Trade[]; holdings: Holding[]; briefings: BriefingHead[]; checks: TradeCheck[]; loadedAt: number } | null>(null);
 
   const loaded = React.useRef(false);
 

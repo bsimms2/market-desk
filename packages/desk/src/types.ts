@@ -81,3 +81,25 @@ export const BRIEFING_LABEL: Record<BriefingKind, string> = {
   swing_evening: "Swing · evening recap",
   long_weekly: "Long-term · weekly",
 };
+
+export type CheckVerdict = "on_track" | "at_risk" | "invalidated" | "target_hit" | "entry_missed" | "stale";
+
+/** The agent's check-in on an idea or open trade (it labels; it never changes the trade). */
+export interface TradeCheck {
+  id: string;
+  trade_id: string;
+  briefing_id: string | null;
+  date: string;
+  verdict: CheckVerdict;
+  price: number | null;
+  note: string;
+}
+
+export const VERDICT_LABEL: Record<CheckVerdict, string> = {
+  on_track: "On track",
+  at_risk: "At risk",
+  invalidated: "Invalidated",
+  target_hit: "Target hit",
+  entry_missed: "Entry missed",
+  stale: "Stale",
+};

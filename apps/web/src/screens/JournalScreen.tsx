@@ -3,6 +3,7 @@ import { Text, View } from "react-native";
 import { daysHeld, effectiveReturn, fmtPct, fmtPrice, STATUS_LABEL, type Track, type Trade, type TradeStatus } from "@desk/core";
 import { useData } from "../db/data";
 import { Button, Empty, Pill, PressCard, Row, Screen, Segmented, Signed } from "../components/ui";
+import { LatestCheck } from "../components/CheckBadge";
 import type { JournalProps } from "../nav";
 import { space, useTheme } from "../theme";
 
@@ -97,6 +98,7 @@ function TradeRow({ t, onPress }: { t: Trade; onPress: () => void }) {
           {t.thesis}
         </Text>
       ) : null}
+      {t.status === "idea" || t.status === "open" ? <LatestCheck tradeId={t.id} /> : null}
       <Text style={[font.small, { marginTop: space.xs }]}>Logged {t.created_at.slice(0, 10)}</Text>
     </PressCard>
   );

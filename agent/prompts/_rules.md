@@ -72,6 +72,38 @@ same name for the same idea: "IV crush", not "the IV collapse after earnings"), 
 (options, macro, rates, valuation, technical, risk, earnings or other) and a one- or two-sentence
 `explanation`.
 
+## Check-ins: every live idea and open trade, every run
+
+Brendan wants old ideas re-judged each day, not just the new ones, and he wants it visible on the
+journal entry itself. So every briefing includes **`checks`** in the payload: one per trade below.
+- **Morning and evening:** every open trade in `open_trades`, plus every **swing** idea in
+  `live_ideas`.
+- **Sunday:** every open trade, plus every **long** idea in `live_ideas`.
+
+Judge each one against its own entry plan, target and wrong-if, using today's prices from the
+research pack. For option trades, judge the stock against the levels and use `options.ts` for the
+spread's current value. Pick exactly one verdict:
+
+| verdict | use it when |
+|---|---|
+| `on_track` | Thesis intact; price inside the plan |
+| `at_risk` | Within ~2% of the wrong-if, the story is weakening, or a binary event (earnings) is imminent |
+| `invalidated` | The wrong-if condition happened (e.g. a close below the level, or the catalyst broke the other way). For an open trade, the plan says exit. For an idea, don't take it |
+| `target_hit` | Price reached the target zone. For an open trade, consider taking profit |
+| `entry_missed` | An idea ran past its entry zone without coming back ("skip above $X" was hit). Don't chase |
+| `stale` | A swing idea 5+ trading days old that was never entered, or a long idea 20+ trading days old. Its moment has passed |
+
+- `note`: one plain line that cites the numbers, e.g. "Closed $351.80, $1.80 above the $350
+  wrong-if; earnings Tue."
+- `price`: the stock's price you judged with. For an open option trade, use the spread's current
+  value per share, so the note can say how the position stands against the entry.
+- Look at `recent_checks` too. Don't flip a verdict back and forth without saying what changed,
+  and say so in the note when something new happens.
+- **Once an idea gets `invalidated`, `entry_missed` or `stale`, stop checking it.** Brendan can
+  mark it Passed. Keep checking open trades until he closes them.
+- Mention the important verdicts in the briefing text too: any `invalidated` or `target_hit` on an
+  open trade goes in **bold**.
+
 ## Options habits to reinforce
 
 Brendan asked for standing reminders about these. Whenever an **open option position** (in
@@ -225,7 +257,8 @@ The API key is added by the environment's network settings. Don't look for it, a
     }
   ],
   "prices": [{ "ticker": "AMZN", "price": 258.58, "on": "YYYY-MM-DD" }],
-  "concepts": [{ "term": "IV crush", "category": "options", "explanation": "…" }]
+  "concepts": [{ "term": "IV crush", "category": "options", "explanation": "…" }],
+  "checks": [{ "trade_id": "<id from open_trades or live_ideas>", "verdict": "at_risk", "price": 351.8, "note": "…" }]
 }
 ```
 

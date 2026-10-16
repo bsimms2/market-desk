@@ -13,6 +13,7 @@ import {
 } from "@desk/core";
 import { useData, type TradeDraft } from "../db/data";
 import { optionPrice, stockPrice } from "../db/quotes";
+import { CheckHistory } from "../components/CheckBadge";
 import { Alert } from "../components/dialog";
 import { Button, Card, DateInput, Field, Input, isIsoDate, NumInput, Pair, Row, Screen, SectionTitle, Segmented, Signed } from "../components/ui";
 import type { JournalProps } from "../nav";
@@ -277,6 +278,15 @@ export function TradeEditScreen({ navigation, route }: JournalProps<"TradeEdit">
           <Input value={f.lesson} onChangeText={set("lesson")} multiline />
         </Field>
       </Card>
+
+      {existing ? (
+        <>
+          <SectionTitle>Agent check-ins</SectionTitle>
+          <Card>
+            <CheckHistory tradeId={existing.id} />
+          </Card>
+        </>
+      ) : null}
 
       <SectionTitle right={existing?.source_briefing_id ? <Button title={showIdea ? "Hide" : "Show"} kind="ghost" onPress={() => setShowIdea((v) => !v)} /> : undefined}>
         The idea

@@ -25,6 +25,14 @@ describe("validatePayload", () => {
     const bad = { ...structuredClone(sample), prices: [{ ticker: "AAPL", price: 0, on: "2026-10-14" }] };
     expect(validatePayload(bad).ok).toBe(false);
   });
+  it("checks need a trade id, a known verdict and a note", () => {
+    const ok = { ...structuredClone(sample), checks: [{ trade_id: "54f7bf35-2409-4d6c-936e-b1ac70175f9e", verdict: "at_risk", price: 351.2, note: "Within $2 of the $350 wrong-if." }] };
+    expect(validatePayload(ok).ok).toBe(true);
+    const bad = { ...structuredClone(sample), checks: [{ trade_id: "TSLA", verdict: "fine", note: "" }] };
+    const r = validatePayload(bad);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.errors.join("\n")).toMatch(/trade_id[\s\S]*verdict[\s\S]*note/);
+  });
   it("edge function copy matches", () => {
     const a = readFileSync(root + "packages/desk/src/payload.ts", "utf8");
     const b = readFileSync(root + "supabase/functions/agent-api/payload.ts", "utf8");

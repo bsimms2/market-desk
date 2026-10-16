@@ -44,7 +44,9 @@ function nyToday(): string {
 async function context(): Promise<Response> {
   const since = new Date(Date.now() - 21 * 86_400_000).toISOString();
   const since14 = new Date(Date.now() - 14 * 86_400_000).toISOString().slice(0, 10);
-  const [open, recent, holdings, briefings, all, closed, concepts] = await Promise.all([
+  const since30 = new Date(Date.now() - 30 * 86_400_000).toISOString();
+  const since14d = new Date(Date.now() - 14 * 86_400_000).toISOString().slice(0, 10);
+  const [open, recent, holdings, briefings, all, closed, concepts, live, checks] = await Promise.all([
     db.from("trades").select("*").eq("status", "open").order("opened_on"),
     db.from("trades").select("id,created_at,track,ticker,direction,instrument,structure,status,catalyst,invalidation,source_briefing_id")
       .gte("created_at", since).order("created_at", { ascending: false }),
@@ -57,8 +59,12 @@ async function context(): Promise<Response> {
       .eq("status", "closed").gte("closed_on", since14).order("closed_on", { ascending: false }),
     db.from("concepts").select("term,category,times_explained,first_explained,last_explained,first_briefing_id,understood")
       .order("first_explained"),
+    // Ideas still awaiting a decision (status 'idea'), with everything needed to check them.
+    db.from("trades").select("id,created_at,track,ticker,direction,instrument,structure,thesis,catalyst,entry_plan,target,invalidation,source_briefing_id")
+      .eq("status", "idea").gte("created_at", since30).order("created_at", { ascending: false }),
+    db.from("trade_checks").select("trade_id,date,verdict,price,note").gte("date", since14d).order("date", { ascending: false }),
   ]);
-  const err = open.error ?? recent.error ?? holdings.error ?? briefings.error ?? all.error ?? closed.error ?? concepts.error;
+  const err = open.error ?? recent.error ?? holdings.error ?? briefings.error ?? all.error ?? closed.error ?? concepts.error ?? live.error ?? checks.error;
   if (err) return json({ error: err.message }, 500);
   return json({
     today_new_york: nyToday(),
@@ -69,6 +75,8 @@ async function context(): Promise<Response> {
     journal_counts: countBy(all.data ?? []),
     closed_last_14d: closed.data,
     concepts_explained: concepts.data,
+    live_ideas: live.data,
+    recent_checks: checks.data,
   });
 }
 
@@ -92,7 +100,7 @@ async function publish(req: Request): Promise<Response> {
   }
   const v = validatePayload(body);
   if (!v.ok) return json({ error: "invalid payload", details: v.errors }, 422);
-  const { briefing, ideas, prices, concepts } = v.value;
+  const { briefing, ideas, prices, concepts, checks } = v.value;
 
   // One briefing per kind per date, so a retried run can't double-post.
   const dup = await db.from("briefings").select("id").eq("kind", briefing.kind).eq("date", briefing.date).maybeSingle();
@@ -174,8 +182,23 @@ async function publish(req: Request): Promise<Response> {
     if (!res.error) conceptsSaved++;
   }
 
+  // Check-ins: only for trades that exist; one per trade per briefing.
+  let checksSaved = 0;
+  if (checks?.length) {
+    const ids = [...new Set(checks.map((c) => c.trade_id))];
+    const known = await db.from("trades").select("id").in("id", ids);
+    const ok = new Set((known.data ?? []).map((r) => r.id as string));
+    const rows = checks
+      .filter((c) => ok.has(c.trade_id))
+      .map((c) => ({ trade_id: c.trade_id, briefing_id: briefingId, date: briefing.date, verdict: c.verdict, price: c.price ?? null, note: c.note }));
+    if (rows.length) {
+      const ins2 = await db.from("trade_checks").upsert(rows, { onConflict: "trade_id,briefing_id" }).select("id");
+      if (!ins2.error) checksSaved = ins2.data.length;
+    }
+  }
+
   const notified = await notify(briefing.title, briefing.summary ?? null, briefingId);
-  return json({ briefing_id: briefingId, idea_ids: ideaIds, prices_updated: pricesUpdated, concepts_saved: conceptsSaved, notified });
+  return json({ briefing_id: briefingId, idea_ids: ideaIds, prices_updated: pricesUpdated, concepts_saved: conceptsSaved, checks_saved: checksSaved, notified });
 }
 
 async function notify(title: string, summary: string | null, id: string): Promise<string> {

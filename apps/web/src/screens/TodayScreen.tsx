@@ -6,6 +6,7 @@ import { useData } from "../db/data";
 import { Card, Empty, Pill, PressCard, Row, Screen, SectionTitle, Signed, Stat } from "../components/ui";
 import { space, useTheme } from "../theme";
 import { fmtDate } from "./BriefingsScreen";
+import { LatestCheck } from "../components/CheckBadge";
 
 const signedMoney = (n: number | null) => (n == null ? "—" : (n > 0 ? "+" : n < 0 ? "−" : "") + fmtPrice(Math.abs(n)));
 
@@ -118,6 +119,7 @@ export function TodayScreen() {
                   Wrong if: {t.invalidation}
                 </Text>
               ) : null}
+              <LatestCheck tradeId={t.id} />
             </PressCard>
           );
         })

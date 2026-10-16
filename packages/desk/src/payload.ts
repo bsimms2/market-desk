@@ -36,6 +36,18 @@ export interface PriceInput {
   on: string;
 }
 
+export const CHECK_VERDICTS = ["on_track", "at_risk", "invalidated", "target_hit", "entry_missed", "stale"] as const;
+
+/** The agent's verdict on an existing idea or open trade. Labels it; never changes the trade. */
+export interface CheckInput {
+  trade_id: string;
+  verdict: (typeof CHECK_VERDICTS)[number];
+  /** Price checked against (stock price, or the option/spread's value for option trades). */
+  price?: number;
+  /** One line: why, against the entry zone / target / wrong-if. */
+  note: string;
+}
+
 export interface ConceptInput {
   /** Short canonical name, e.g. "IV crush", "debit spread", "yield curve". */
   term: string;
@@ -49,6 +61,8 @@ export interface PublishPayload {
   ideas: IdeaInput[];
   /** Concepts this briefing explained (fully or as a reminder). Builds the "already learned" list. */
   concepts?: ConceptInput[];
+  /** Check-ins on live ideas and open trades (ids from agent-context). */
+  checks?: CheckInput[];
   /** Latest prices for held tickers, from the agent's research. Updates holdings.last_price only. */
   prices?: PriceInput[];
 }
@@ -100,6 +114,17 @@ export function validatePayload(input: unknown): Validation {
         if (!str(raw[f])) errors.push(`${at}.${f} is required`);
       }
     });
+  }
+
+  if (p.checks != null) {
+    if (!Array.isArray(p.checks)) errors.push("checks must be a list");
+    else
+      p.checks.forEach((c: any, i: number) => {
+        if (!c || !/^[0-9a-f-]{36}$/i.test(String(c.trade_id))) errors.push(`checks[${i}].trade_id must be a trade id from agent-context`);
+        if (!c || !(CHECK_VERDICTS as readonly string[]).includes(c.verdict)) errors.push(`checks[${i}].verdict must be one of ${CHECK_VERDICTS.join(", ")}`);
+        if (!c || !str(c.note)) errors.push(`checks[${i}].note is required`);
+        if (c && c.price != null && !(typeof c.price === "number" && c.price >= 0)) errors.push(`checks[${i}].price must be a number`);
+      });
   }
 
   if (p.concepts != null) {
