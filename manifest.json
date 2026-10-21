@@ -1,0 +1,8 @@
+{
+  "name": "Market Desk",
+  "short_name": "Desk",
+  "start_url": "/market-desk/",
+  "scope": "/market-desk/",
+  "display": "standalone",
+  "background_color": "#0f1216"
+}
