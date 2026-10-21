@@ -212,3 +212,18 @@ Glob/Grep/WebSearch/WebFetch, only the Claude_Code_Remote connector):
 
 The `bot_accounts` migration was run by Brendan in the SQL editor (the MCP refuses statements
 that drop constraints or indexes): ask him to do the same for any future migration with a `drop`.
+
+## Briefing depth upgrade (2026-10-21)
+
+Diagnosis from the 2026-10-21 morning run (4.5 min, 2 web searches): the 33k-token digest was too
+big to read, Finnhub (two scripts at once) and Forex Factory (cloud IPs) returned 429, and nothing
+required verifying causes. Fixes:
+- `gather.ts` digest ~4k tokens (no URLs; they stay in the JSON files).
+- `news.ts --no-finnhub` inside gather; `finnhub.ts` paced 1.1 s with 429 retries, run after calendar.
+- Economic calendar: `market_cache` table + agent-api `?action=econ_calendar` (cache.ts), warmed by
+  pg_cron jobs `econ-calendar-refresh` (weekdays 10/13/17/21 UTC) and `-sunday` (20 UTC);
+  `calendar.ts` reads the cache first, the feed directly only as a fallback.
+- `_rules.md` "Research standards" + a self-review step; deeper asks in the three task prompts.
+- Morning briefing starts 7:30 (`30 11,12 * * 1-5`, window 7:05–8:05).
+- Models: evening + weekly on claude-opus-5-5. The morning routine's model change was blocked by
+  the credential classifier (its prompt carries the FRED key), so Brendan switches it in the UI.
