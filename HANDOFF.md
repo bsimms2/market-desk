@@ -200,3 +200,15 @@ Aggressive bot: `agent/prompts/aggressive.md`, gates `aggro-open` (9:45), `aggro
 `aggro-late` (15:15); web tools allowed (it reads news), so its setup does not carry over to a
 live account as is. `scripts/scan.ts`: Yahoo predefined screeners (no key) + sector ETFs.
 Dashboard: comparison card and an account switcher on the "Paper bots" tab.
+
+Aggressive routines (environment "Default", repo source, claude-sonnet-5-5, tools Bash/Read/Write/
+Glob/Grep/WebSearch/WebFetch, only the Claude_Code_Remote connector):
+
+| Routine | ID | Cron (UTC) | Gate |
+|---|---|---|---|
+| Aggressive bot (9:45) | trig_01RmX7Q6wYZe6g6kUENN7ffa | `45 13,14 * * 1-5` | `aggro-open` |
+| Aggressive bot (12:30) | trig_012TEvV3HMJyg9EKogS1juEB | `30 16,17 * * 1-5` | `aggro-midday` |
+| Aggressive bot (3:15) | trig_01EM95Ppgg6oFWvrWLQaQA2B | `15 19,20 * * 1-5` | `aggro-late` |
+
+The `bot_accounts` migration was run by Brendan in the SQL editor (the MCP refuses statements
+that drop constraints or indexes): ask him to do the same for any future migration with a `drop`.
