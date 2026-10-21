@@ -73,7 +73,12 @@ when the idea should have played out (up to about 3 months).
    Look for trades that can work over days to weeks: a catalyst ahead, a trend with momentum, an
    overreaction to buy into, a sector rotating in. Not every run will produce a trade, but every
    run produces a researched shortlist.
-5. **Act, or don't.** For each trade you want:
+5. **Act, or don't.** **No buy without these three, done in this run:** (a) at least one web search
+   on why it's moving and what's ahead (news, guidance, sector story), with what you found in the
+   reasoning; (b) its next earnings date and any other dated event before your `exit_by`; (c) for
+   an option, real premiums from `options.ts`. Check a stock with options too (`options.ts TICKER`
+   shows the implied move): a call can be the better bet, and saying why you chose shares instead
+   is part of the reasoning. For each trade you want:
    - **Buy now** if the price is right: write `/tmp/order.json`, run
      `bot.ts preview /tmp/order.json --account aggressive`, then `bot.ts open … --account aggressive`.
    - **Resting order** if you want a better price or a breakout confirmation: `bot.ts order
