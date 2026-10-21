@@ -1,7 +1,7 @@
 import React from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
-import { accountTotals, BOT_KIND_LABEL, BOT_RULES, daysBetween, fmtPct, fmtPrice, isBearish, scorecard, todayIso, type ScoreFilter } from "@desk/core";
-import { useBot, type BotDecision, type BotOrder, type BotPosition } from "../db/bot";
+import { accountTotals, BOT_KIND_LABEL, BOT_PROFILES, daysBetween, fmtPct, fmtPrice, isBearish, scorecard, todayIso, type ScoreFilter } from "@desk/core";
+import { accountView, useBot, type BotData, type BotDecision, type BotOrder, type BotPosition } from "../db/bot";
 import type { LiveQuote } from "../db/quotes";
 import { Button, Card, Empty, Pill, Row, Screen, SectionTitle, Segmented, Signed, Stat } from "../components/ui";
 import { Alert } from "../components/dialog";
@@ -53,11 +53,26 @@ const EXIT_LABEL: Record<NonNullable<BotPosition["exit_reason"]>, string> = {
   expiry: "Expired",
 };
 
-/** The paper trading agent's dashboard: account vs SPY, open positions with live prices, its decisions, its scorecard. */
+/** Live value of one account: stock positions at the live quote, options at the checker's latest mark. */
+function liveTotals(v: BotData, quotes: Map<string, LiveQuote>) {
+  const live = v.positions.map((p) => (p.status === "open" ? { ...p, mark: valueNow(p, quotes.get(p.ticker)).value } : p));
+  const tot = accountTotals(v.account.starting_cash, live);
+  const spy = quotes.get("SPY")?.price;
+  const spyPct = v.account.spy_start && spy ? ((spy - v.account.spy_start) / v.account.spy_start) * 100 : null;
+  return { ...tot, spyPct, edge: spyPct == null ? null : tot.returnPct - spyPct };
+}
+
+const ACCOUNT_BLURB: Record<string, string> = {
+  steady: "Filters the research desk's ideas. Limits: 20% per stock, 6% per option, 6 positions, pauses at −25%.",
+  aggressive: "Finds its own trades. No size limits, cash only, stock and long calls/puts. Runs 9:45, 12:30 and 3:15 ET.",
+};
+
+/** The paper bots' dashboard: both accounts vs SPY, then one account's positions, orders, decisions and scorecard. */
 export function LiveScreen() {
   const { c, font } = useTheme();
   const { data, quotes, quotedAt, error, resume } = useBot();
   const [filter, setFilter] = React.useState<ScoreFilter>("all");
+  const [accountId, setAccountId] = React.useState(1);
   const [resuming, setResuming] = React.useState(false);
 
   if (!data) {
@@ -68,17 +83,19 @@ export function LiveScreen() {
     );
   }
 
-  const { account, positions, decisions, marks, orders } = data;
+  const views = data.accounts.map((a) => accountView(data, a.id)!);
+  const view = views.find((v) => v.account.id === accountId) ?? views[0];
+  if (!view) return <Screen><Empty title="No paper accounts" /></Screen>;
+  const { account, positions, decisions, marks, orders } = view;
+  const profile = BOT_PROFILES[account.profile];
+  const hasSpreads = positions.some((p) => p.kind === "call_spread" || p.kind === "put_spread");
   const pending = orders.filter((o) => o.status === "pending");
   const lately = orders.filter((o) => o.status !== "pending" && o.status !== "filled").slice(0, 5);
   const open = positions.filter((p) => p.status === "open");
   const closed = positions.filter((p) => p.status === "closed");
-  const live = positions.map((p) => (p.status === "open" ? { ...p, mark: valueNow(p, quotes.get(p.ticker)).value } : p));
-  const tot = accountTotals(account.starting_cash, live);
-  const spy = quotes.get("SPY");
-  const session = spy?.session;
-  const spyPct = account.spy_start && spy?.price ? ((spy.price - account.spy_start) / account.spy_start) * 100 : null;
-  const edge = spyPct == null ? null : tot.returnPct - spyPct;
+  const tot = liveTotals(view, quotes);
+  const { spyPct, edge } = tot;
+  const session = quotes.get("SPY")?.session;
   const latestDay = decisions[0]?.date;
   const latest = decisions.filter((d) => d.date === latestDay);
   const sc = scorecard(positions, filter);
@@ -90,7 +107,7 @@ export function LiveScreen() {
         text: "Resume",
         onPress: () => {
           setResuming(true);
-          resume()
+          resume(account.id)
             .catch((e) => Alert.alert("Couldn't resume", e instanceof Error ? e.message : String(e)))
             .finally(() => setResuming(false));
         },
@@ -100,14 +117,48 @@ export function LiveScreen() {
   return (
     <Screen>
       <Row style={{ marginBottom: space.sm }}>
-        <Row style={{ justifyContent: "flex-start" }}>
-          <Pill label={`Paper · ${fmtPrice(account.starting_cash).replace(".00", "")}`} tone="accent" />
-          <Pill label={account.status === "active" ? "Trading" : "Paused"} tone={account.status === "active" ? "good" : "bad"} />
-        </Row>
+        <Pill label="Paper money" tone="accent" />
         <Text style={font.small}>
           {session === "regular" ? "● Market open" : session === "pre" ? "Pre-market" : session === "post" ? "After hours" : "Market closed"}
           {quotedAt ? ` · ${new Date(quotedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" })}` : ""}
         </Text>
+      </Row>
+
+      {views.length > 1 ? (
+        <Card>
+          <Row>
+            <Text style={[font.small, { flex: 1 }]}>Since each bot's first trade</Text>
+            <Text style={[font.small, { width: 92, textAlign: "right" }]}>Value</Text>
+            <Text style={[font.small, { width: 64, textAlign: "right" }]}>Return</Text>
+            <Text style={[font.small, { width: 64, textAlign: "right" }]}>SPY</Text>
+          </Row>
+          {views.map((v) => {
+            const t = liveTotals(v, quotes);
+            return (
+              <Pressable key={v.account.id} onPress={() => setAccountId(v.account.id)}>
+                <Row style={{ marginTop: space.sm }}>
+                  <Text style={[font.h2, { flex: 1, color: v.account.id === account.id ? c.accent : c.text }]}>{v.account.name}</Text>
+                  <Text style={[font.num, { width: 92, textAlign: "right", fontSize: 15 }]}>{fmtPrice(t.equity)}</Text>
+                  <Signed value={t.returnPct} text={fmtPct(t.returnPct)} style={{ width: 64, textAlign: "right", fontSize: 15 }} />
+                  <Signed value={t.spyPct} text={v.account.started_on ? fmtPct(t.spyPct) : "—"} style={{ width: 64, textAlign: "right", fontSize: 15 }} />
+                </Row>
+              </Pressable>
+            );
+          })}
+        </Card>
+      ) : null}
+
+      <Segmented<string>
+        value={String(account.id)}
+        onChange={(v) => {
+          setAccountId(Number(v));
+          setFilter("all");
+        }}
+        options={views.map((v) => ({ value: String(v.account.id), label: v.account.name }))}
+      />
+      <Row style={{ marginTop: space.sm, marginBottom: space.sm, alignItems: "flex-start" }}>
+        <Text style={[font.small, { flex: 1 }]}>{ACCOUNT_BLURB[account.slug] ?? ""}</Text>
+        <Pill label={account.status === "active" ? "Trading" : "Paused"} tone={account.status === "active" ? "good" : "bad"} />
       </Row>
 
       {account.status === "paused" ? (
@@ -141,10 +192,14 @@ export function LiveScreen() {
         </Text>
       </Card>
 
-      <SectionTitle right={<Text style={font.small}>{open.length} of {BOT_RULES.maxOpen}</Text>}>Open positions</SectionTitle>
+      <SectionTitle right={<Text style={font.small}>{profile.maxOpen != null ? `${open.length} of ${profile.maxOpen}` : `${open.length} open`}</Text>}>Open positions</SectionTitle>
       {open.length === 0 ? (
         <Card>
-          <Text style={font.dim}>Nothing open. The trader agent looks at the research desk's ideas at 10:00 AM and 2:30 PM ET.</Text>
+          <Text style={font.dim}>
+            {account.slug === "aggressive"
+              ? "Nothing open. The aggressive bot scans the market at 9:45 AM, 12:30 PM and 3:15 PM ET."
+              : "Nothing open. The steady bot looks at the research desk's ideas at 10:00 AM and 2:30 PM ET."}
+          </Text>
         </Card>
       ) : (
         open.map((p) => <PositionCard key={p.id} p={p} q={quotes.get(p.ticker)} />)
@@ -165,7 +220,7 @@ export function LiveScreen() {
       <SectionTitle right={latestDay ? <Text style={font.small}>{fmtDate(latestDay)}</Text> : undefined}>Latest decisions</SectionTitle>
       {latest.length === 0 ? (
         <Card>
-          <Text style={font.dim}>No decisions yet. Each run, the agent takes, skips or waits on every new idea and says why.</Text>
+          <Text style={font.dim}>No decisions yet. Every trade, resting order and skip comes with the agent's reasoning.</Text>
         </Card>
       ) : (
         latest.map((d) => <DecisionCard key={d.id} d={d} />)
@@ -178,7 +233,7 @@ export function LiveScreen() {
         options={[
           { value: "all", label: "All trades" },
           { value: "live", label: "Fits live account" },
-          { value: "spreads", label: "Spreads" },
+          ...(hasSpreads ? [{ value: "spreads" as const, label: "Spreads (old)" }] : []),
         ]}
       />
       <Text style={[font.small, { marginVertical: space.sm }]}>
@@ -186,7 +241,7 @@ export function LiveScreen() {
           ? "Every closed paper trade."
           : filter === "live"
             ? `Only trades the $${account.live_pot.toLocaleString()} live account could have made (size limits, no spreads): roughly what real money would have done.`
-            : "Only debit spreads: your playbook if you trade those yourself."}
+            : "The few debit spreads the steady bot took before spreads were switched off."}
       </Text>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.sm }}>
         <Stat label="Closed" value={String(sc.closed)} sub={`${sc.wins} won`} />

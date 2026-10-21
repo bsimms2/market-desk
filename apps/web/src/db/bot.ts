@@ -4,8 +4,12 @@ import type { BotKind } from "@desk/core";
 import { supabase } from "./supabase";
 import { liveQuotes, type LiveQuote } from "./quotes";
 
-/** The paper trading agent's account (one row). */
+/** A paper trading account: "steady" (id 1) or "aggressive" (id 2). */
 export interface BotAccount {
+  id: number;
+  slug: "steady" | "aggressive";
+  name: string;
+  profile: "steady" | "aggressive";
   starting_cash: number;
   live_pot: number;
   status: "active" | "paused";
@@ -16,6 +20,7 @@ export interface BotAccount {
 
 export interface BotPosition {
   id: string;
+  account_id: number;
   created_at: string;
   idea_id: string | null;
   ticker: string;
@@ -45,6 +50,7 @@ export interface BotPosition {
 
 export interface BotDecision {
   id: string;
+  account_id: number;
   created_at: string;
   date: string;
   idea_id: string | null;
@@ -58,6 +64,7 @@ export interface BotDecision {
 /** A resting order: buys when the underlying reaches the trigger (the checker looks every 10 min). */
 export interface BotOrder {
   id: string;
+  account_id: number;
   created_at: string;
   idea_id: string | null;
   ticker: string;
@@ -78,6 +85,7 @@ export interface BotOrder {
 }
 
 export interface BotMark {
+  account_id: number;
   date: string;
   equity: number;
   cash: number;
@@ -94,6 +102,7 @@ function normPosition(r: any): BotPosition {
   return o as BotPosition;
 }
 
+/** One account's slice of the data. */
 export interface BotData {
   account: BotAccount;
   positions: BotPosition[];
@@ -103,10 +112,26 @@ export interface BotData {
   orders: BotOrder[];
 }
 
-async function fetchBot(): Promise<BotData> {
+/** Every account's data. */
+export interface BotAll {
+  accounts: BotAccount[];
+  positions: BotPosition[];
+  decisions: BotDecision[];
+  marks: BotMark[];
+  orders: BotOrder[];
+}
+
+export function accountView(all: BotAll, accountId: number): BotData | null {
+  const account = all.accounts.find((a) => a.id === accountId);
+  if (!account) return null;
+  const mine = <T extends { account_id: number }>(xs: T[]) => xs.filter((x) => x.account_id === accountId);
+  return { account, positions: mine(all.positions), decisions: mine(all.decisions), marks: mine(all.marks), orders: mine(all.orders) };
+}
+
+async function fetchBot(): Promise<BotAll> {
   const since = new Date(Date.now() - 45 * 86_400_000).toISOString().slice(0, 10);
   const [a, p, d, m, o] = await Promise.all([
-    supabase.from("bot_account").select("*").eq("id", 1).single(),
+    supabase.from("bot_account").select("*").order("id"),
     supabase.from("bot_positions").select("*").order("created_at", { ascending: false }),
     supabase.from("bot_decisions").select("*").gte("date", since).order("created_at", { ascending: false }),
     supabase.from("bot_marks").select("*").order("date"),
@@ -115,21 +140,21 @@ async function fetchBot(): Promise<BotData> {
   const err = a.error ?? p.error ?? d.error ?? m.error ?? o.error;
   if (err) throw new Error(err.message);
   return {
-    account: { ...(a.data as any), starting_cash: Number(a.data.starting_cash), live_pot: Number(a.data.live_pot), spy_start: num(a.data.spy_start) },
+    accounts: (a.data ?? []).map((r: any) => ({ ...r, starting_cash: Number(r.starting_cash), live_pot: Number(r.live_pot), spy_start: num(r.spy_start) })),
     positions: (p.data ?? []).map(normPosition),
     decisions: (d.data ?? []) as BotDecision[],
     orders: (o.data ?? []).map((r: any) => ({ ...r, qty: Number(r.qty), stop: Number(r.stop), target: Number(r.target), trigger_price: Number(r.trigger_price), max_price: num(r.max_price) })),
-    marks: (m.data ?? []).map((r: any) => ({ date: r.date, equity: Number(r.equity), cash: Number(r.cash), open_value: Number(r.open_value), spy: num(r.spy) })),
+    marks: (m.data ?? []).map((r: any) => ({ account_id: r.account_id, date: r.date, equity: Number(r.equity), cash: Number(r.cash), open_value: Number(r.open_value), spy: num(r.spy) })),
   };
 }
 
 /**
- * The bot's tables, refreshed every minute while the screen is open (the checker updates
+ * Both bots' tables, refreshed every minute while the screen is open (the checker updates
  * marks every 10), plus live quotes for the open tickers and SPY every 20 seconds while the
  * market is open. Polling stops while the page is hidden.
  */
 export function useBot() {
-  const [data, setData] = React.useState<BotData | null>(null);
+  const [data, setData] = React.useState<BotAll | null>(null);
   const [quotes, setQuotes] = React.useState<Map<string, LiveQuote>>(new Map());
   const [error, setError] = React.useState<string | null>(null);
   const [quotedAt, setQuotedAt] = React.useState<number | null>(null);
@@ -180,8 +205,8 @@ export function useBot() {
     return () => clearInterval(id);
   }, [requote, session, !!data]);
 
-  const resume = React.useCallback(async () => {
-    const { error: e } = await supabase.from("bot_account").update({ status: "active", paused_reason: null }).eq("id", 1);
+  const resume = React.useCallback(async (accountId: number) => {
+    const { error: e } = await supabase.from("bot_account").update({ status: "active", paused_reason: null }).eq("id", accountId);
     if (e) throw new Error(e.message);
     await reload();
   }, [reload]);

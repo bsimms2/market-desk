@@ -1,24 +1,44 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { accountTotals, checkRules, exitHit, fitsLive, intrinsic, killSwitchHit, parseSpec, scorecard, triggerHit, validateOrder, validateRestingOrder, type BotOrder } from "../src";
+import {
+  accountTotals,
+  BOT_PROFILES,
+  checkRules,
+  exitHit,
+  fitsLive,
+  intrinsic,
+  killSwitchHit,
+  parseSpec,
+  scorecard,
+  triggerHit,
+  validateOrder,
+  validateRestingOrder,
+  type BotOrder,
+} from "../src";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const IDEA = "54f7bf35-2409-4d6c-936e-b1ac70175f9e";
+const AGG = BOT_PROFILES.aggressive;
 
 const stock: BotOrder = { idea_id: IDEA, ticker: "NVDA", kind: "stock", qty: 4, stop: 200, target: 240, exit_by: "2026-11-06", reasoning: "Breakout above resistance into earnings." };
+const call = { ...stock, kind: "call" as const, spec: "NVDA:2026-11-20:230C", qty: 1 };
 const spread = { ...stock, kind: "call_spread" as const, spec: "NVDA:2026-11-20:220/230C", qty: 1 };
 const acct = { status: "active" as const, cash: 5000, equity: 5000, openTickers: [], today: "2026-10-19" };
 
 describe("validateOrder", () => {
-  it("accepts a stock and a spread order", () => {
+  it("accepts a stock and a call order", () => {
     expect(validateOrder(stock).ok).toBe(true);
-    expect(validateOrder(spread).ok).toBe(true);
+    expect(validateOrder(call).ok).toBe(true);
   });
-  it("rejects a credit spread, a mismatched spec and stop above target", () => {
-    const r = validateOrder({ ...spread, spec: "NVDA:2026-11-20:230/220C" });
+  it("no spreads for either account (Brendan's options account can't trade them)", () => {
+    const r = validateOrder(spread);
     expect(r.ok).toBe(false);
-    expect(validateOrder({ ...spread, kind: "put_spread" }).ok).toBe(false);
+    if (!r.ok) expect(r.errors.join()).toMatch(/kind: one of stock, call, put/);
+    expect(validateOrder(spread, AGG).ok).toBe(false);
+  });
+  it("rejects a mismatched spec and stop above target", () => {
+    expect(validateOrder({ ...call, spec: "NVDA:2026-11-20:230P" }).ok).toBe(false);
     expect(validateOrder({ ...stock, stop: 250 }).ok).toBe(false);
   });
   it("bearish trades put the stop above the target", () => {
@@ -31,9 +51,15 @@ describe("validateOrder", () => {
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.errors.join("\n")).toMatch(/qty[\s\S]*reasoning/);
   });
+  it("steady needs a research idea; aggressive doesn't (but a given one must be a uuid)", () => {
+    const { idea_id: _, ...own } = stock;
+    expect(validateOrder(own).ok).toBe(false);
+    expect(validateOrder(own, AGG)).toMatchObject({ ok: true });
+    expect(validateOrder({ ...own, idea_id: "NVDA" }, AGG).ok).toBe(false);
+  });
 });
 
-describe("checkRules", () => {
+describe("checkRules: steady", () => {
   it("passes a stock position under 20% of equity", () => {
     expect(checkRules(stock, { price: 215, underlying: 215 }, acct).errors).toEqual([]);
   });
@@ -43,16 +69,32 @@ describe("checkRules", () => {
     expect(r.errors.join()).toMatch(/over 20%/);
   });
   it("caps options risk at 6% of equity ($300 on $5,000)", () => {
-    expect(checkRules(spread, { price: 2.9, underlying: 215 }, acct).errors).toEqual([]);
-    expect(checkRules(spread, { price: 3.1, underlying: 215 }, acct).errors.join()).toMatch(/over 6%/);
+    expect(checkRules(call, { price: 2.9, underlying: 215 }, acct).errors).toEqual([]);
+    expect(checkRules(call, { price: 3.1, underlying: 215 }, acct).errors.join()).toMatch(/over 6%/);
   });
   it("blocks when paused, full, already holding, or the price is outside stop/target", () => {
     const r = checkRules(stock, { price: 245, underlying: 245 }, { ...acct, status: "paused", openTickers: ["NVDA", "A", "B", "C", "D", "E"] });
     expect(r.errors.join("\n")).toMatch(/paused[\s\S]*max 6[\s\S]*already holding[\s\S]*between the stop/);
   });
   it("options must have time left and exit before expiry", () => {
-    const r = checkRules({ ...spread, spec: "NVDA:2026-10-23:220/230C", exit_by: "2026-10-23" }, { price: 1, underlying: 215 }, acct);
+    const r = checkRules({ ...call, spec: "NVDA:2026-10-23:230C", exit_by: "2026-10-23" }, { price: 1, underlying: 215 }, acct);
     expect(r.errors.join("\n")).toMatch(/under 7 days[\s\S]*before the expiry/);
+  });
+});
+
+describe("checkRules: aggressive", () => {
+  it("no size or count limits: all-in on one stock or one call is fine", () => {
+    expect(checkRules({ ...stock, qty: 23 }, { price: 215, underlying: 215 }, acct, AGG).errors).toEqual([]);
+    expect(checkRules({ ...call, qty: 10 }, { price: 4.9, underlying: 215 }, acct, AGG).errors).toEqual([]);
+    const many = { ...acct, openTickers: ["A", "B", "C", "D", "E", "F", "G"] };
+    expect(checkRules(stock, { price: 215, underlying: 215 }, many, AGG).errors).toEqual([]);
+  });
+  it("but it's a cash account: no spending past the cash", () => {
+    const r = checkRules({ ...stock, qty: 24 }, { price: 215, underlying: 215 }, acct, AGG);
+    expect(r.errors.join()).toMatch(/costs \$5160.00, cash is \$5000.00/);
+  });
+  it("no kill switch", () => {
+    expect(killSwitchHit(5000, 100, AGG)).toBe(false);
   });
 });
 
@@ -73,6 +115,11 @@ describe("resting orders", () => {
     expect(triggerHit("at_or_below", 210, 209.9)).toBe(true);
     expect(triggerHit("at_or_below", 210, 210.1)).toBe(false);
     expect(triggerHit("at_or_above", 230, 230)).toBe(true);
+  });
+  it("aggressive resting orders don't need an idea", () => {
+    const { idea_id: _, ...own } = rest;
+    expect(validateRestingOrder(own, "2026-10-19", 216, AGG).ok).toBe(true);
+    expect(validateRestingOrder(own, "2026-10-19", 216).ok).toBe(false);
   });
   it("bearish triggers sit between target (low) and stop (high)", () => {
     const put = { ...rest, kind: "put", spec: "NVDA:2026-11-20:200P", stop: 240, target: 190, trigger_type: "at_or_above", trigger_price: 225 };

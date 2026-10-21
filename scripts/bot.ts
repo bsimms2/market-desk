@@ -1,4 +1,5 @@
-// The paper trading agent's commands. Every call goes through agent-api (curl; see desk-env.ts).
+// The paper trading agents' commands. Every call goes through agent-api (curl; see desk-env.ts).
+// Add --account aggressive for the aggressive bot (default: steady).
 //
 //   node scripts/bot.ts context                 account, rules, open positions, ideas to review (JSON)
 //   node scripts/bot.ts preview order.json      price an order and check it against the rules; trades nothing
@@ -18,7 +19,14 @@
 import { readFileSync } from "node:fs";
 import { deskRequest, type DeskAction } from "./desk-env.ts";
 
-const [cmd, a, b] = process.argv.slice(2);
+const argv = process.argv.slice(2);
+const flag = argv.indexOf("--account");
+const account = flag >= 0 ? argv.splice(flag, 2)[1] : "steady";
+if (account !== "steady" && account !== "aggressive") {
+  console.error("--account steady|aggressive");
+  process.exit(2);
+}
+const [cmd, a, b] = argv;
 const file = (p: string | undefined) => {
   if (!p) throw new Error(`${cmd} needs a JSON file`);
   return JSON.parse(readFileSync(p, "utf8"));
@@ -67,7 +75,7 @@ switch (cmd) {
     process.exit(2);
 }
 
-const res = deskRequest(action, body === undefined ? undefined : JSON.stringify(body));
+const res = deskRequest(action, body === undefined ? undefined : JSON.stringify(body), action === "bot_check" ? "" : `&account=${account}`);
 console.log(res.text);
 if (res.status !== 200) {
   console.error(`${cmd} refused (HTTP ${res.status})`);

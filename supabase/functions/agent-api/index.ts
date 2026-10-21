@@ -8,15 +8,15 @@
 // with status 'idea', and refresh holdings.last_price. It never updates or
 // deletes a trade, and nothing here talks to a brokerage.
 //
-// The paper trading agent's actions (?action=bot_*) live in bot.ts. They only touch the
-// bot_* tables, which hold a simulated account; fills are priced from live quotes.
+// The paper trading agents' actions (?action=bot_*&account=steady|aggressive) live in bot.ts.
+// They only touch the bot_* tables, which hold simulated accounts; fills are priced from live quotes.
 //
 // Secrets (supabase secrets set …): DESK_AGENT_TOKEN, and optionally
 // RESEND_API_KEY + NOTIFY_EMAIL for the "briefing ready" email, SITE_URL.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { validatePayload } from "./payload.ts";
-import { botAdjust, botCancel, botCheck, botClose, botContext, botDecide, botOpen, botOrder } from "./bot.ts";
+import { accountFor, botAdjust, botCancel, botCheck, botClose, botContext, botDecide, botOpen, botOrder } from "./bot.ts";
 
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
   auth: { persistSession: false },
@@ -230,18 +230,23 @@ Deno.serve(async (req) => {
   if (!token) return json({ error: "server not configured" }, 500);
   if (!sameSecret(req.headers.get("x-desk-token") ?? "", token)) return json({ error: "unauthorized" }, 401);
 
-  const action = new URL(req.url).searchParams.get("action");
+  const url = new URL(req.url);
+  const action = url.searchParams.get("action");
   try {
     if (req.method === "GET" && action === "context") return await context();
     if (req.method === "POST" && action === "publish") return await publish(req);
-    if (req.method === "GET" && action === "bot_context") return await botContext(db, json);
-    if (req.method === "POST" && action === "bot_open") return await botOpen(db, req, json);
-    if (req.method === "POST" && action === "bot_order") return await botOrder(db, req, json);
-    if (req.method === "POST" && action === "bot_cancel") return await botCancel(db, req, json);
-    if (req.method === "POST" && action === "bot_decide") return await botDecide(db, req, json);
-    if (req.method === "POST" && action === "bot_close") return await botClose(db, req, json);
-    if (req.method === "POST" && action === "bot_adjust") return await botAdjust(db, req, json);
     if (req.method === "POST" && action === "bot_check") return await botCheck(db, json);
+    if (action?.startsWith("bot_")) {
+      const acct = await accountFor(db, url.searchParams.get("account"));
+      if (!acct) return json({ error: "account: steady or aggressive" }, 404);
+      if (req.method === "GET" && action === "bot_context") return await botContext(db, acct, json);
+      if (req.method === "POST" && action === "bot_open") return await botOpen(db, acct, req, json);
+      if (req.method === "POST" && action === "bot_order") return await botOrder(db, acct, req, json);
+      if (req.method === "POST" && action === "bot_cancel") return await botCancel(db, acct, req, json);
+      if (req.method === "POST" && action === "bot_decide") return await botDecide(db, acct, req, json);
+      if (req.method === "POST" && action === "bot_close") return await botClose(db, acct, req, json);
+      if (req.method === "POST" && action === "bot_adjust") return await botAdjust(db, acct, req, json);
+    }
     return json({ error: "use GET ?action=context|bot_context or POST ?action=publish|bot_open|bot_order|bot_cancel|bot_decide|bot_close|bot_adjust|bot_check" }, 404);
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);

@@ -178,3 +178,25 @@ beta since 2026-05-27) trades only in a dedicated non-IRA "Agentic" account but 
 Brendan's Robinhood accounts (fine: his other money is at E*Trade). Options are "rolling out";
 spreads need Level 3 = margin. Setup/OAuth is desktop-only, and whether a cloud routine can use it
 is unknown: test that first. Brendan's plan: per-trade approval at first in live mode.
+
+## Two paper bots: steady and aggressive (2026-10-21)
+
+`bot_account` now has two rows: **steady** (id 1, the original) and **aggressive** (id 2). Every
+bot table has `account_id`; the API takes `&account=steady|aggressive` (default steady) and the
+checker runs every account. Rules live in `BOT_PROFILES` (`packages/desk/src/bot.ts`):
+
+| | Steady | Aggressive |
+|---|---|---|
+| Ideas | research desk only (`idea_id` required) | its own (web, `scripts/scan.ts`); desk ideas optional |
+| Size | 20% stock / 6% options of equity | none (cash only, no margin) |
+| Max open | 6 | none (one per ticker) |
+| Kill switch | −25% | none |
+| Kinds | stock, call, put | stock, call, put |
+
+**No spreads for either** from 2026-10-21 (Brendan's Robinhood options account can't trade them).
+The steady bot's earlier HAL call spread runs out normally.
+
+Aggressive bot: `agent/prompts/aggressive.md`, gates `aggro-open` (9:45), `aggro-midday` (12:30),
+`aggro-late` (15:15); web tools allowed (it reads news), so its setup does not carry over to a
+live account as is. `scripts/scan.ts`: Yahoo predefined screeners (no key) + sector ETFs.
+Dashboard: comparison card and an account switcher on the "Paper bots" tab.

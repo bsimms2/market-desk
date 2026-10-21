@@ -1,5 +1,7 @@
 /**
- * The paper trading agent ("the bot"): its rules, order validation, P/L and scorecard.
+ * The paper trading agents ("the bots"): their rules, order validation, P/L and scorecard.
+ * Two simulated accounts, each with a rule profile: "steady" (filters the research desk's
+ * ideas, with size limits) and "aggressive" (finds its own trades, no size limits).
  *
  * Self-contained on purpose (no imports): tools/sync-payload.sh copies this file into
  * supabase/functions/agent-api/ so the edge function (Deno) enforces exactly the rules
@@ -20,19 +22,57 @@ export const BOT_KIND_LABEL: Record<BotKind, string> = {
   put_spread: "Put spread",
 };
 
-/** Every limit is a percent of the account's current equity, so results carry over to the smaller live pot. */
-export const BOT_RULES = {
-  /** A stock position may cost at most this % of equity. */
-  stockMaxPct: 20,
-  /** An options position may risk (cost) at most this % of equity. Debit only, so cost = max loss. */
-  optionMaxLossPct: 6,
-  maxOpen: 6,
+export type BotProfileId = "steady" | "aggressive";
+
+/** What an account may do. Percent limits are of current equity; null means no limit beyond cash. */
+export interface BotProfile {
+  id: BotProfileId;
+  name: string;
+  /** Kinds it may open. No spreads: Brendan's Robinhood options account can't trade them. */
+  kinds: BotKind[];
+  stockMaxPct: number | null;
+  /** For options, cost = max loss (long calls and puts only). */
+  optionMaxLossPct: number | null;
+  maxOpen: number | null;
   /** Trading pauses when equity falls this % below the starting cash. */
-  killSwitchPct: 25,
+  killSwitchPct: number | null;
+  /** Options must expire at least this many calendar days after the trade opens. */
+  minDaysToExpiry: number;
+  /** Must every trade start from a research-desk idea? */
+  requireIdea: boolean;
+}
+
+export const BOT_PROFILES: Record<BotProfileId, BotProfile> = {
+  steady: {
+    id: "steady",
+    name: "Steady",
+    kinds: ["stock", "call", "put"],
+    stockMaxPct: 20,
+    optionMaxLossPct: 6,
+    maxOpen: 6,
+    killSwitchPct: 25,
+    minDaysToExpiry: 7,
+    requireIdea: true,
+  },
+  aggressive: {
+    id: "aggressive",
+    name: "Aggressive",
+    kinds: ["stock", "call", "put"],
+    stockMaxPct: null,
+    optionMaxLossPct: null,
+    maxOpen: null,
+    killSwitchPct: null,
+    minDaysToExpiry: 7,
+    requireIdea: false,
+  },
+};
+
+export const BOT_RULES = {
   /** The planned real-money pot. Each paper trade is tagged with whether it would fit there. */
   livePot: 2500,
-  /** Options must expire at least this many calendar days after the trade opens. */
-  minDaysToExpiry: 7,
+  /** The live account's limits, as % of the pot (the steady profile's). */
+  liveStockMaxPct: 20,
+  liveOptionMaxLossPct: 6,
   /** Stock fills pay this % of slippage each way (the quote feed has no bid/ask for stocks). */
   stockSlippagePct: 0.05,
 } as const;
@@ -48,9 +88,9 @@ const multiplier = (k: BotKind) => (k === "stock" ? 1 : 100);
 export const positionValue = (k: BotKind, qty: number, price: number) => round2(qty * price * multiplier(k));
 export const pnlOf = (k: BotKind, qty: number, entry: number, exit: number) => round2((exit - entry) * qty * multiplier(k));
 
-/** Would this trade fit the live account's limits (sizes are a % of the live pot)? */
+/** Would this trade fit the $2,500 live account's limits ($500 stock, $150 options)? */
 export function fitsLive(k: BotKind, cost: number): boolean {
-  const pct = k === "stock" ? BOT_RULES.stockMaxPct : BOT_RULES.optionMaxLossPct;
+  const pct = k === "stock" ? BOT_RULES.liveStockMaxPct : BOT_RULES.liveOptionMaxLossPct;
   return cost <= (BOT_RULES.livePot * pct) / 100 + 1e-9;
 }
 
@@ -86,8 +126,8 @@ export function kindOfSpec(p: ParsedSpec): BotKind {
 // Orders from the agent
 
 export interface BotOrder {
-  /** The research idea (trades.id) this trade comes from. Every bot trade starts from one. */
-  idea_id: string;
+  /** The research idea (trades.id) this trade comes from. Required for the steady bot. */
+  idea_id?: string;
   ticker: string;
   kind: BotKind;
   /** Option spec (see above). Required for options, absent for stock. */
@@ -111,12 +151,14 @@ const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFin
 const isText = (v: unknown, min = 1): v is string => typeof v === "string" && v.trim().length >= min;
 
 /** Shape check: right fields, right types. Market-dependent rules come later in checkRules. */
-export function validateOrder(body: unknown): Result<BotOrder> {
+export function validateOrder(body: unknown, profile: BotProfile = BOT_PROFILES.steady): Result<BotOrder> {
   const e: string[] = [];
   const o = (body ?? {}) as Record<string, unknown>;
-  if (!isText(o.idea_id) || !UUID.test(o.idea_id)) e.push("idea_id: the research idea's uuid");
+  if (o.idea_id != null || profile.requireIdea) {
+    if (!isText(o.idea_id) || !UUID.test(o.idea_id)) e.push(profile.requireIdea ? "idea_id: the research idea's uuid" : "idea_id: a research idea's uuid, or leave it out");
+  }
   if (!isText(o.ticker) || !/^[A-Z][A-Z.]{0,9}$/.test(o.ticker)) e.push("ticker: uppercase symbol, e.g. NVDA");
-  if (!BOT_KINDS.includes(o.kind as BotKind)) e.push(`kind: one of ${BOT_KINDS.join(", ")}`);
+  if (!profile.kinds.includes(o.kind as BotKind)) e.push(`kind: one of ${profile.kinds.join(", ")}`);
   if (!isNum(o.qty) || o.qty <= 0 || !Number.isInteger(o.qty)) e.push("qty: a whole number of shares or contracts, at least 1");
   if (!isNum(o.stop) || o.stop <= 0) e.push("stop: underlying price that closes the trade as wrong");
   if (!isNum(o.target) || o.target <= 0) e.push("target: underlying price that takes the profit");
@@ -144,7 +186,7 @@ export function validateOrder(body: unknown): Result<BotOrder> {
   return {
     ok: true,
     value: {
-      idea_id: o.idea_id as string,
+      ...(o.idea_id != null ? { idea_id: o.idea_id as string } : {}),
       ticker: o.ticker as string,
       kind,
       ...(isOption(kind) ? { spec: o.spec as string } : {}),
@@ -180,8 +222,8 @@ export function triggerHit(type: TriggerType, triggerPrice: number, underlying: 
   return type === "at_or_below" ? underlying <= triggerPrice : underlying >= triggerPrice;
 }
 
-export function validateRestingOrder(body: unknown, today: string, underlying?: number): Result<RestingOrder> {
-  const base = validateOrder(body);
+export function validateRestingOrder(body: unknown, today: string, underlying?: number, profile: BotProfile = BOT_PROFILES.steady): Result<RestingOrder> {
+  const base = validateOrder(body, profile);
   const e: string[] = base.ok ? [] : [...base.errors];
   const o = (body ?? {}) as Record<string, unknown>;
   if (o.trigger_type !== "at_or_below" && o.trigger_type !== "at_or_above") e.push("trigger_type: at_or_below or at_or_above");
@@ -224,23 +266,32 @@ export interface AccountState {
 }
 
 /** The checks that need the fill price and the account. Returns what's wrong, or an empty list. */
-export function checkRules(order: BotOrder, fill: { price: number; underlying: number }, acct: AccountState): { errors: string[]; cost: number } {
+export function checkRules(
+  order: BotOrder,
+  fill: { price: number; underlying: number },
+  acct: AccountState,
+  profile: BotProfile = BOT_PROFILES.steady,
+): { errors: string[]; cost: number } {
   const e: string[] = [];
   const cost = positionValue(order.kind, order.qty, fill.price);
   if (acct.status !== "active") e.push("account is paused (kill switch); no new trades until Brendan resumes it");
-  if (acct.openTickers.length >= BOT_RULES.maxOpen) e.push(`already ${acct.openTickers.length} open positions (max ${BOT_RULES.maxOpen})`);
+  if (profile.maxOpen != null && acct.openTickers.length >= profile.maxOpen) e.push(`already ${acct.openTickers.length} open positions (max ${profile.maxOpen})`);
   if (acct.openTickers.includes(order.ticker)) e.push(`already holding ${order.ticker}`);
   if (fill.price <= 0) e.push("no usable price to fill at");
   if (cost > acct.cash + 1e-9) e.push(`costs $${cost.toFixed(2)}, cash is $${acct.cash.toFixed(2)}`);
   if (order.kind === "stock") {
-    const cap = (acct.equity * BOT_RULES.stockMaxPct) / 100;
-    if (cost > cap + 1e-9) e.push(`stock position $${cost.toFixed(2)} is over ${BOT_RULES.stockMaxPct}% of equity ($${cap.toFixed(2)})`);
+    if (profile.stockMaxPct != null) {
+      const cap = (acct.equity * profile.stockMaxPct) / 100;
+      if (cost > cap + 1e-9) e.push(`stock position $${cost.toFixed(2)} is over ${profile.stockMaxPct}% of equity ($${cap.toFixed(2)})`);
+    }
   } else {
-    const cap = (acct.equity * BOT_RULES.optionMaxLossPct) / 100;
-    if (cost > cap + 1e-9) e.push(`options risk $${cost.toFixed(2)} is over ${BOT_RULES.optionMaxLossPct}% of equity ($${cap.toFixed(2)})`);
+    if (profile.optionMaxLossPct != null) {
+      const cap = (acct.equity * profile.optionMaxLossPct) / 100;
+      if (cost > cap + 1e-9) e.push(`options risk $${cost.toFixed(2)} is over ${profile.optionMaxLossPct}% of equity ($${cap.toFixed(2)})`);
+    }
     const p = parseSpec(order.spec!)!;
     const days = (Date.parse(p.expiry) - Date.parse(acct.today)) / 86_400_000;
-    if (days < BOT_RULES.minDaysToExpiry) e.push(`expiry ${p.expiry} is under ${BOT_RULES.minDaysToExpiry} days away`);
+    if (days < profile.minDaysToExpiry) e.push(`expiry ${p.expiry} is under ${profile.minDaysToExpiry} days away`);
     if (!(order.exit_by < p.expiry)) e.push("exit_by must be before the expiry");
   }
   if (!(order.exit_by > acct.today)) e.push("exit_by must be after today");
@@ -306,8 +357,9 @@ export function accountTotals(startingCash: number, positions: BotPositionLike[]
   };
 }
 
-/** Kill switch: has equity fallen far enough below the start to pause trading? */
-export const killSwitchHit = (startingCash: number, equity: number) => equity <= startingCash * (1 - BOT_RULES.killSwitchPct / 100);
+/** Kill switch: has equity fallen far enough below the start to pause trading? (Never, for a profile without one.) */
+export const killSwitchHit = (startingCash: number, equity: number, profile: BotProfile = BOT_PROFILES.steady) =>
+  profile.killSwitchPct != null && equity <= startingCash * (1 - profile.killSwitchPct / 100);
 
 export type ScoreFilter = "all" | "live" | "spreads";
 

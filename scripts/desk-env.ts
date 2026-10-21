@@ -4,8 +4,8 @@ const DEFAULT_URL = "https://lomsjeahhiyforjnwbtu.supabase.co/functions/v1/agent
 
 export type DeskAction = "context" | "publish" | "bot_context" | "bot_open" | "bot_order" | "bot_cancel" | "bot_decide" | "bot_close" | "bot_adjust" | "bot_check";
 
-export function apiUrl(action: DeskAction): string {
-  return (process.env.DESK_API_URL ?? DEFAULT_URL) + "?action=" + action;
+export function apiUrl(action: DeskAction, extra = ""): string {
+  return (process.env.DESK_API_URL ?? DEFAULT_URL) + "?action=" + action + extra;
 }
 
 /**
@@ -17,12 +17,12 @@ export function apiUrl(action: DeskAction): string {
  * arrived without the header and got 401. Locally, DESK_AGENT_TOKEN from .env
  * is sent instead.
  */
-export function deskRequest(action: DeskAction, body?: string): { status: number; text: string } {
+export function deskRequest(action: DeskAction, body?: string, extraQuery = ""): { status: number; text: string } {
   const args = ["-sS", "--max-time", "60", "-w", "\n%{http_code}", "-H", "content-type: application/json"];
   const t = process.env.DESK_AGENT_TOKEN;
   if (t) args.push("-H", `x-desk-token: ${t}`);
   if (body !== undefined) args.push("-X", "POST", "--data-binary", "@-");
-  args.push(apiUrl(action));
+  args.push(apiUrl(action, extraQuery));
   let out: string;
   try {
     out = execFileSync("curl", args, { input: body ?? "", encoding: "utf8", maxBuffer: 32 * 1024 * 1024 });
