@@ -82,7 +82,7 @@ journal entry itself. So every briefing includes **`checks`** in the payload: on
 
 Judge each one against its own entry plan, target and wrong-if, using today's prices from the
 research pack. For option trades, judge the stock against the levels and use `options.ts` for the
-spread's current value. Pick exactly one verdict:
+option's current value (or the spread's, for an older spread trade). Pick exactly one verdict:
 
 | verdict | use it when |
 |---|---|
@@ -95,7 +95,7 @@ spread's current value. Pick exactly one verdict:
 
 - `note`: one plain line that cites the numbers, e.g. "Closed $351.80, $1.80 above the $350
   wrong-if; earnings Tue."
-- `price`: the stock's price you judged with. For an open option trade, use the spread's current
+- `price`: the stock's price you judged with. For an open option trade, use the option's current
   value per share, so the note can say how the position stands against the entry.
 - Look at `recent_checks` too. Don't flip a verdict back and forth without saying what changed,
   and say so in the note when something new happens.
@@ -104,16 +104,26 @@ spread's current value. Pick exactly one verdict:
 - Mention the important verdicts in the briefing text too: any `invalidated` or `target_hit` on an
   open trade goes in **bold**.
 
+## Options: only what Brendan can trade
+
+Brendan's options account (Robinhood) **can't trade spreads**: they need Level 3 approval, which
+needs a margin account. So every options angle and every option idea uses **long calls or long
+puts only**. No debit or credit spreads, no selling options. When a spread would have been the
+natural pitch (expensive IV into earnings, wanting a cheaper bet), say how a single call or put
+handles it instead (a later expiry, a strike nearer the money, fewer contracts) or why shares are
+the better expression. You can still *explain* spreads as a concept when it helps him understand
+something, but never pitch one as the trade.
+
 ## Options habits to reinforce
 
 Brendan asked for standing reminders about these. Whenever an **open option position** (in
 `open_trades`), or an option idea you're pitching, is **within 10 trading days of expiry**, add a
 short line to its entry covering:
-- **Close a spread as one order**, at a limit near the mid. If you ever leg out, buy back the
-  *sold* leg first; never sell the bought leg while still short the other (that leaves a naked
-  short).
+- **Close with a limit order** near the mid, not a market order: option bid/ask gaps are wide.
 - **Close before expiration day**, ideally a day or two early. An in-the-money long option is
-  usually auto-exercised (e.g. 100 shares × the strike), and a short leg can be assigned.
+  usually auto-exercised (e.g. 100 shares × the strike), which needs cash he may not have.
+- For an older **spread** still open in his journal: close it as one order, and if he ever legs
+  out, buy back the *sold* leg first (never leave a naked short).
 
 Keep it to one or two lines. He knows the why; this is the checklist.
 
@@ -198,17 +208,18 @@ or Brokerage) and, when he's written one, his own `thesis` ("why I own it").
    - `node scripts/options.ts TICKER [...]`: real option prices from CBOE (delayed about 15
      minutes), with bid/ask, mid, IV and greeks. With no flags it gives the underlying price, IV30,
      upcoming expiries and the **implied move** (the at-the-money straddle as a % of the price) for
-     each. `--expiry YYYY-MM-DD --spread 220/230C` (or `…P`) prices a debit spread: cost per
-     contract, max profit, breakeven and reward:risk. `--strikes 210-230` lists the chain.
+     each. `--expiry YYYY-MM-DD --strikes 210-230` lists the chain for that expiry: bid, ask,
+     mid, IV, delta and theta per strike. (`--spread` exists but don't use it: no spreads.)
      **Use only expiry dates that `options.ts` lists.** Monthly options expire on the third
      *Friday*: write "Nov 20", never "Nov 21".
-     **Every options angle must use these numbers.** Name the exact contracts, the debit and the
-     breakeven, and compare the implied move with what the idea needs. That's how Brendan
-     learns what options actually cost.
+     **Every options angle must use these numbers.** Name the exact contract, its premium (cost
+     per contract = mid × 100) and the breakeven at expiry (strike + premium for a call, strike −
+     premium for a put), and compare the implied move with what the idea needs. That's how
+     Brendan learns what options actually cost.
      Also give a one-line **sizing note**: the max loss of one contract as a % of his portfolio
      (sum of `shares × latest price` across holdings). Say so when it's above about 2%, the usual
-     single-trade risk guideline, and suggest a narrower spread or a smaller position. It's paper,
-     but the habit is the point.
+     single-trade risk guideline, and suggest a cheaper strike, fewer contracts or shares instead.
+     It's paper, but the habit is the point.
 
    If one of these errors, carry on with the others and note the gap in the briefing.
 6. **Research** the story further with web searches and page fetches (see your task prompt).
@@ -246,14 +257,14 @@ The API key is added by the environment's network settings. Don't look for it, a
       "ticker": "UPPERCASE, e.g. MU or BRK.B",
       "direction": "long | short",
       "instrument": "stock | option   (the expression you'd lead with)",
-      "structure": "\"Shares\", or e.g. \"Nov 21 150/160 call spread\"",
+      "structure": "\"Shares\", or e.g. \"Nov 20 150 call\" or \"Dec 18 90 put\" (no spreads)",
       "thesis": "2–4 sentences, cause and effect",
       "catalyst": "what should move it, and when (date/time)",
       "catalyst_type": "earnings | macro | news | sector | technical | other",
       "entry_plan": "a concrete zone, e.g. \"$142–145 on a pullback; skip above $150\"",
       "target": "a concrete level, e.g. \"$158 (prior high)\"",
       "invalidation": "the wrong-if, e.g. \"closes below $138\" or \"guidance cut\"",
-      "options_angle": "one way to express it with options, priced from options.ts (exact contracts, debit, breakeven, IV, implied move), plus one sentence on options vs. shares (IV, earnings crush, time decay, defined risk)"
+      "options_angle": "one way to express it with a single long call or put, priced from options.ts (exact contract, premium per contract, breakeven, IV, delta, implied move), plus one sentence on the option vs. shares (IV, earnings crush, time decay, how much the stock must move)"
     }
   ],
   "prices": [{ "ticker": "AMZN", "price": 258.58, "on": "YYYY-MM-DD" }],

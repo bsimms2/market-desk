@@ -19,7 +19,7 @@ lesson.
   earnings date, and any analyst or guidance change.
 - **Open paper long-term trades:** against their theses.
 - **This week's options lesson:** find a real options example from this week (an earnings IV
-  crush, a big move that made a spread pay, theta eating a long call, a covered call capping
+  crush, a big move that made a call pay, theta eating a long call, a covered call capping
   upside, a put showing what protection costs) and get the real numbers.
 
 ## Briefing layout (`body_md`)
