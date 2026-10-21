@@ -2,6 +2,7 @@
 //
 //   GET  ?action=context   → open trades, recent ideas, active holdings, recent briefings
 //   POST ?action=publish   → body is a PublishPayload (see payload.ts)
+//   GET  ?action=econ_calendar → the cached economic calendar (cache.ts)
 //
 // Auth: header `x-desk-token` must equal the DESK_AGENT_TOKEN secret.
 // What it can do is deliberately narrow: insert one briefing, insert its ideas
@@ -16,6 +17,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { validatePayload } from "./payload.ts";
+import { econCalendar } from "./cache.ts";
 import { accountFor, botAdjust, botCancel, botCheck, botClose, botContext, botDecide, botOpen, botOrder } from "./bot.ts";
 
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
@@ -236,6 +238,7 @@ Deno.serve(async (req) => {
     if (req.method === "GET" && action === "context") return await context();
     if (req.method === "POST" && action === "publish") return await publish(req);
     if (req.method === "POST" && action === "bot_check") return await botCheck(db, json);
+    if (action === "econ_calendar") return await econCalendar(db, url, json);
     if (action?.startsWith("bot_")) {
       const acct = await accountFor(db, url.searchParams.get("account"));
       if (!acct) return json({ error: "account: steady or aggressive" }, 404);

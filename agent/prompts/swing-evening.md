@@ -17,7 +17,11 @@ against their theses, and what did the market teach? **No new ideas**: `ideas` m
 - **Brendan's holdings:** today's close and % change for every ticker (all of them go in
   `prices`, dated today). Find the reason for any holding that moved 3% or more either way.
 - **After-hours:** earnings released after the close, and any after-hours move in his holdings
-  or today's idea tickers.
+  or today's idea tickers. For each report that matters, the actual numbers and guidance vs.
+  expectations from the release or 8-K, and what drove the after-hours move: tomorrow morning's
+  ideas often start here.
+- Follow the research standards in `_rules.md`: confirm the *reason* behind the day's big sector
+  and stock moves, don't just restate the move.
 
 ## Recap layout (`body_md`)
 

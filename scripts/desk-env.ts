@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 
 const DEFAULT_URL = "https://lomsjeahhiyforjnwbtu.supabase.co/functions/v1/agent-api";
 
-export type DeskAction = "context" | "publish" | "bot_context" | "bot_open" | "bot_order" | "bot_cancel" | "bot_decide" | "bot_close" | "bot_adjust" | "bot_check";
+export type DeskAction = "context" | "publish" | "bot_context" | "bot_open" | "bot_order" | "bot_cancel" | "bot_decide" | "bot_close" | "bot_adjust" | "bot_check" | "econ_calendar";
 
 export function apiUrl(action: DeskAction, extra = ""): string {
   return (process.env.DESK_API_URL ?? DEFAULT_URL) + "?action=" + action + extra;

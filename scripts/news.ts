@@ -2,6 +2,8 @@
 //   node scripts/news.ts --market                              market-wide headlines
 //   node scripts/news.ts --holdings /tmp/context.json          per holding ticker
 //   node scripts/news.ts NVDA MU --days 3 --max 8              specific tickers
+//   --no-finnhub   skip Finnhub company news (gather.ts passes it: finnhub.ts already fetches that,
+//                  and two scripts calling Finnhub at once ran into its rate limit)
 // Feeds: Google News search (surfaces Reuters, AP, Bloomberg, WSJ... headlines and
 // snippets), CNBC, Nasdaq, Yahoo Finance, MarketWatch and Federal Reserve RSS.
 // Feeds give headlines + summaries, not full articles: several of these sites
@@ -109,10 +111,12 @@ const MARKET_FEEDS: [string, string][] = [
 
 const ymd = (offsetDays: number) => new Date(Date.now() + offsetDays * 86_400_000).toISOString().slice(0, 10);
 
+let useFinnhub = true;
+
 const tickerFeeds = (t: string, name?: string): [string, string][] => [
   // Finnhub company news first: it carries Benzinga-style "why is X moving" items, and doesn't
   // block the cloud machines the way Google News sometimes does.
-  ["Finnhub", `https://finnhub.io/api/v1/company-news?symbol=${encodeURIComponent(t)}&from=${ymd(-3)}&to=${ymd(0)}`],
+  ...((useFinnhub ? [["Finnhub", `https://finnhub.io/api/v1/company-news?symbol=${encodeURIComponent(t)}&from=${ymd(-3)}&to=${ymd(0)}`]] : []) as [string, string][]),
   ["Google News", gnews(`${name ? `"${coreName(name)}"` : `"${t}"`} (stock OR shares OR earnings OR analyst OR guidance) when:3d`)],
   ["Yahoo Finance", `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${encodeURIComponent(t)}&region=US&lang=en-US`],
   ["Nasdaq", `https://www.nasdaq.com/feed/rssoutbound?symbol=${encodeURIComponent(t)}`],
@@ -187,6 +191,7 @@ if (isMain) {
   for (let i = 0; i < args.length; i++) {
     const a = args[i]!;
     if (a === "--market") market = true;
+    else if (a === "--no-finnhub") useFinnhub = false;
     else if (a === "--days") days = Number(args[++i]);
     else if (a === "--max") max = Number(args[++i]);
     else if (a === "--holdings") {

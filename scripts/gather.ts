@@ -5,6 +5,9 @@
 // digest. Read the digest first; open a JSON file only to dig into something.
 // Why: in an early evening run the agent skipped several scripts and then reported data as
 // "unavailable" that was in fact one command away. One command, every source, every time.
+// The digest is kept compact (no URLs, short summaries; target under ~10k tokens) so the agent can
+// read all of it: at 33k tokens it read the first 120 lines and skimmed the rest. Every URL is still
+// in the per-source JSON files, for citations.
 import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -41,17 +44,25 @@ function run(name: string, script: string, scriptArgs: string[], timeoutMs: numb
   });
 }
 
-const results = await Promise.all([
-  run("quotes", "quotes.ts", ["--holdings", ctxPath, ...MARKET, ...ideaTickers], 120_000),
-  run("news", "news.ts", ["--market", "--holdings", ctxPath, ...ideaTickers], 150_000),
-  run("econ", "econ.ts", [], 90_000),
-  run("calendar", "calendar.ts", [], 90_000),
-  run("filings", "filings.ts", ["--holdings", ctxPath, ...ideaTickers], 120_000),
-  run("finnhub", "finnhub.ts", ["--holdings", ctxPath, ...ideaTickers], 150_000),
-]);
+// Finnhub's free tier allows 60 calls a minute: news.ts leaves Finnhub out (finnhub.ts fetches the
+// same company news), and finnhub.ts starts only after calendar.ts's one Finnhub call is done.
+const finnhubAfterCalendar = run("calendar", "calendar.ts", [], 90_000).then(async (cal) => [cal, await run("finnhub", "finnhub.ts", ["--holdings", ctxPath, ...ideaTickers], 180_000)]);
+const results = (
+  await Promise.all([
+    run("quotes", "quotes.ts", ["--holdings", ctxPath, ...MARKET, ...ideaTickers], 120_000),
+    run("news", "news.ts", ["--market", "--no-finnhub", "--holdings", ctxPath, ...ideaTickers], 150_000),
+    run("econ", "econ.ts", [], 90_000),
+    run("filings", "filings.ts", ["--holdings", ctxPath, ...ideaTickers], 120_000),
+    finnhubAfterCalendar,
+  ])
+).flat();
 const by = Object.fromEntries(results.map((r) => [r.name, r]));
 
 const lines: string[] = [];
+const clip = (t: unknown, n: number) => {
+  const x = String(t ?? "").replace(/\s+/g, " ").trim();
+  return x.length > n ? x.slice(0, n - 1) + "…" : x;
+};
 const pct = (n: number | undefined) => (n == null ? "—" : `${n > 0 ? "+" : ""}${n}%`);
 lines.push(`# Research pack (${new Date().toISOString()})`, "");
 lines.push("## Source status");
@@ -105,7 +116,7 @@ for (const t of [...new Set([...holdings, ...ideaTickers])]) {
   if (f?.next_earnings) lines.push(`- next earnings: ${typeof f.next_earnings === "string" ? f.next_earnings : `${f.next_earnings.date} ${f.next_earnings.when} (EPS est ${f.next_earnings.eps_estimate ?? "?"})`}`);
   if (f?.analysts) lines.push(`- analysts ${f.analysts.period}: SB ${f.analysts.strong_buy} B ${f.analysts.buy} H ${f.analysts.hold} S ${f.analysts.sell} SS ${f.analysts.strong_sell}${f.analysts.previous ? ` (prev month B ${f.analysts.previous.buy} H ${f.analysts.previous.hold})` : ""}`);
   const fl = fil[t];
-  if (fl?.filings?.length) for (const g of fl.filings.slice(0, 3)) lines.push(`- SEC ${g.form} ${g.date}${g.items ? ` [${g.items.join("; ")}]` : ""} ${g.url}`);
+  if (fl?.filings?.length) for (const g of fl.filings.slice(0, 3)) lines.push(`- SEC ${g.form} ${g.date}${g.items ? ` [${g.items.join("; ")}]` : ""}`);
   if (fl?.insider_form4_count) lines.push(`- insider Form 4s (14d): ${fl.insider_form4_count}, latest ${fl.latest_form4}`);
   const items = [...(news?.tickers?.[t] ?? []), ...((f?.news ?? []).map((n: any) => ({ title: n.headline, source: n.source, url: n.url, published: n.date, summary: n.summary })) ?? [])];
   const seen = new Set<string>();
@@ -113,17 +124,19 @@ for (const t of [...new Set([...holdings, ...ideaTickers])]) {
     const key = String(it.title).toLowerCase().slice(0, 60);
     if (seen.has(key)) continue;
     seen.add(key);
-    if (seen.size > 5) break;
-    lines.push(`- news ${String(it.published ?? "").slice(0, 16)} ${it.source}: ${it.title}${it.summary ? ` — ${String(it.summary).slice(0, 220)}` : ""} (${it.url})`);
+    if (seen.size > 4) break;
+    lines.push(`- news ${String(it.published ?? "").slice(5, 16).replace("T", " ")} ${it.source}: ${clip(it.title, 140)}${it.summary ? ` — ${clip(it.summary, 160)}` : ""}`);
   }
 }
 
 // Market headlines
 if (news?.market?.length) {
   lines.push("", "## Market headlines");
-  for (const it of news.market.slice(0, 30)) lines.push(`- ${String(it.published ?? "").slice(0, 16)} ${it.source}: ${it.title}${it.summary ? ` — ${String(it.summary).slice(0, 200)}` : ""} (${it.url})`);
+  for (const it of news.market.slice(0, 30)) lines.push(`- ${String(it.published ?? "").slice(5, 16).replace("T", " ")} ${it.source}: ${clip(it.title, 140)}${it.summary ? ` — ${clip(it.summary, 160)}` : ""}`);
 }
+lines.push("", "_URLs for every item: news.json, finnhub.json and filings.json in this folder (search them by headline to cite a source)._");
 
 const digest = lines.join("\n");
 writeFileSync(join(out, "digest.md"), digest);
 console.log(digest);
+console.error(`digest: ${digest.length} characters (~${Math.round(digest.length / 4)} tokens)`);

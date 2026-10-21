@@ -13,16 +13,32 @@ import { readFileSync } from "node:fs";
 
 const BASE = "https://finnhub.io/api/v1";
 
+const sleep = (ms: number) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
+// The free tier allows 60 calls a minute. Space calls out, and back off and retry on 429,
+// so a full holdings run (3 calls per ticker) finishes instead of failing halfway.
+const GAP_MS = 1100;
+let lastCall = 0;
+
 function get(path: string): any {
   const args = ["-sS", "--max-time", "20", "-w", "\n%{http_code}"];
   if (process.env.FINNHUB_TOKEN) args.push("-H", `X-Finnhub-Token: ${process.env.FINNHUB_TOKEN}`);
   args.push(BASE + path);
-  const out = execFileSync("curl", args, { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
-  const cut = out.lastIndexOf("\n");
-  const status = Number(out.slice(cut + 1));
-  const body = out.slice(0, cut);
-  if (status !== 200) throw new Error(`HTTP ${status}: ${body.slice(0, 120)}`);
-  return JSON.parse(body);
+  for (let attempt = 0; ; attempt++) {
+    const wait = lastCall + GAP_MS - Date.now();
+    if (wait > 0) sleep(wait);
+    lastCall = Date.now();
+    const out = execFileSync("curl", args, { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
+    const cut = out.lastIndexOf("\n");
+    const status = Number(out.slice(cut + 1));
+    const body = out.slice(0, cut);
+    if (status === 429 && attempt < 3) {
+      sleep(5000 * (attempt + 1));
+      continue;
+    }
+    if (status !== 200) throw new Error(`HTTP ${status}: ${body.slice(0, 120)}`);
+    return JSON.parse(body);
+  }
 }
 
 const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);

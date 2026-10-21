@@ -18,6 +18,12 @@ lesson.
 - **Every holding:** this week's % change, the latest close (for `prices`), news, next
   earnings date, and any analyst or guidance change.
 - **Open paper long-term trades:** against their theses.
+- **Long-term ideas get the deepest dig of the week:** the latest quarterly results and guidance
+  (from the release, 10-Q or call coverage), valuation against its own history and peers (forward
+  P/E from `scan.ts` or a reputable source), the competitive position, and the 1–2 things that
+  would break the thesis. Use `node scripts/scan.ts undervalued_large_caps growth_technology_stocks
+  undervalued_growth_stocks` as one place to look, and follow the research standards in
+  `_rules.md`. A Sunday run has time: take it.
 - **This week's options lesson:** find a real options example from this week (an earnings IV
   crush, a big move that made a call pay, theta eating a long call, a covered call capping
   upside, a put showing what protection costs) and get the real numbers.

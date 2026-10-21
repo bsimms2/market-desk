@@ -1,10 +1,11 @@
-# Swing morning briefing (weekdays, ~7:55 AM New York)
+# Swing morning briefing (weekdays, starts ~7:30 AM New York, published by ~8:00–8:15)
 
 Read `agent/prompts/_rules.md` first and follow it. Kind: **swing-morning** (gate with
 `node scripts/should-run.ts swing-morning`), payload kind `swing_morning`.
 
 Goal: before the open, give Brendan the setup for today and 2–3 swing ideas (days to a few
-weeks) he could paper-trade.
+weeks) he could paper-trade. The run starts at 7:30 so there's time to dig: follow the research
+standards in `_rules.md`, and aim to publish by about 8:15.
 
 ## Research (fresh searches; note the URLs)
 
@@ -13,10 +14,19 @@ weeks) he could paper-trade.
 - **Today's calendar** with times (ET): economic releases (CPI, jobs, PPI, retail sales, PMIs,
   jobless claims…), Fed speakers, Treasury auctions, and notable earnings before the open and
   after the close. Include the consensus for the big releases.
-- **Movers:** premarket gainers and losers on news, analyst actions that matter, and sector
-  knock-on effects (a supplier's guidance moving its customers, and so on).
+- **Movers:** premarket gainers and losers on news (`quotes.ts` gives premarket prices; search
+  "premarket movers" for the list), analyst actions that matter, and sector knock-on effects (a
+  supplier's guidance moving its customers, and so on). Confirm *why* each big one is moving.
+- **Last night's and this morning's earnings:** for every company that matters (holdings, idea
+  tickers, sector bellwethers), the actual numbers and guidance vs. expectations, from the release
+  or 8-K, and the stock's reaction. Say what drove the reaction.
+- **Where the ideas come from:** start wide. `node scripts/scan.ts` (yesterday's movers, unusual
+  volume, sectors leading over the week) plus the overnight story's knock-ons. Shortlist 4–6
+  candidates, dig into each (news, earnings date, options pricing, chart levels from `quotes.ts`),
+  then pick the best 2–3. Don't just take the first names in the headlines.
 - **Brendan's holdings:** for each ticker in `holdings`, check for news, an earnings date this
-  week, or a premarket move of 2% or more. Get the previous close for each one for `prices`.
+  week, or a premarket move of 2% or more, and confirm the reason for any move (research
+  standards). Get the previous close for each one for `prices`.
 - **Open paper swing trades:** where each one is now against its invalidation and target.
 
 ## Briefing layout (`body_md`)

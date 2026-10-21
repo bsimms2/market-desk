@@ -26,6 +26,33 @@ or `long-weekly.md`) says what goes into that particular briefing.
    `_Research and learning material, not financial advice._`
 6. Don't commit to git or change any file in the repo. Write scratch files under `/tmp` only.
 
+## Research standards: dig, don't skim
+
+Brendan's complaint about earlier briefings: they read like a headline roundup and missed things.
+A briefing is only as good as the digging behind it. Take the time. A thorough run takes 15–25
+minutes; a 4-minute run means steps were skipped.
+
+- **Read the whole research pack.** `/tmp/md/digest.md` is sized to be read in full: read all of
+  it, not the first page. Then open the JSON files behind anything that matters.
+- **Every claim about *why* has a source you actually checked.** For every notable mover (a holding
+  moving 2%+, an index or sector story, each idea's catalyst) confirm the reason with **one primary
+  source** (the company's earnings release or 8-K, guidance, a regulator or Fed statement, the data
+  release itself) **or two independent reputable reports**. A headline is a lead, not a source.
+- **"Unconfirmed" is a last resort,** allowed only after at least two targeted searches (e.g. "DHR
+  stock falls guidance", then the company's IR page or the 8-K from `filings.ts`). Say what you
+  searched. Today a holding beat earnings but fell, and the briefing left it "unconfirmed" after
+  one search: that's the miss to avoid (the answer is usually in the guidance or the call).
+- **Earnings: read the numbers, not the reaction.** For any reported company that matters (a
+  holding, an idea, a sector bellwether): revenue and EPS vs. estimates, the guidance vs. what was
+  expected, and the one or two things that moved the stock (a margin, a segment, a comment on the
+  call). The release or 8-K is usually one search or one `filings.ts` link away.
+- **Look beyond the obvious.** Ask what else today's big story touches: suppliers, customers,
+  competitors, the sector ETF, rates. That's where the less crowded ideas are. `node scripts/scan.ts`
+  shows yesterday's biggest movers, unusual volume and which sectors are leading over the week.
+- **Use a real budget of searches.** Expect roughly 10–20 web searches or page fetches in a morning
+  or weekly run, fewer in the evening. Spend them on confirming causes and on the ideas, not on
+  restating the digest.
+
 ## How Brendan learns best
 
 He learns from **narrative cause and effect**, not textbook definitions. When you explain a
@@ -154,8 +181,10 @@ or Brokerage) and, when he's written one, his own `thesis` ("why I own it").
    message that started this run, then `node scripts/gather.ts <idea tickers>`. It runs every
    data script below in parallel (prices, news, economic data, the calendar with actuals vs
    forecasts, SEC filings, Finnhub) and writes `/tmp/md/digest.md` plus one JSON file per source.
-   Read the digest first. The steps below say what each source is for, and you can re-run any
-   single script to dig deeper.
+   Read **the whole digest** (it's compact: read it end to end, not just the first page). The
+   steps below say what each source is for, and you can re-run any single script to dig deeper.
+   URLs aren't in the digest; find them in `/tmp/md/news.json`, `finnhub.json` and `filings.json`
+   when you cite a source.
    - **Never write that a number or a reason "couldn't be found" without checking the digest and
      the JSON files.** The economic release section lists each release with
      `ACTUAL … vs forecast …`; quote those. If the digest says "not yet in data", look for it in
@@ -226,7 +255,14 @@ or Brokerage) and, when he's written one, his own `thesis` ("why I own it").
    Prefer primary and reputable sources: company IR and filings, the BLS, the BEA, the Fed,
    Reuters, AP, CNBC, MarketWatch, Yahoo Finance, Nasdaq, exchange sites. Keep the URL of
    everything you rely on.
-7. **Write** the payload JSON to `/tmp/payload.json` (format below).
+7. **Self-review before writing.** Go through this list and fix any gaps with more research:
+   - Every holding that moved 2%+ or has news has a confirmed reason (or two searches tried, said so).
+   - Every idea has a dated catalyst, a price from `quotes.ts`, an options angle priced from
+     `options.ts`, and a wrong-if a trader could act on.
+   - Every number in the text came from the research pack, a script, or a page you opened.
+   - Nothing is marked "unconfirmed" that one more search could settle.
+   - You looked past the headline story at least once (a knock-on, a sector, a less obvious name).
+   Then **write** the payload JSON to `/tmp/payload.json` (format below).
 8. **Check** with `node scripts/publish-briefing.ts /tmp/payload.json --dry-run`. Fix anything it
    reports, then run it again.
 9. **Publish** with `node scripts/publish-briefing.ts /tmp/payload.json`.

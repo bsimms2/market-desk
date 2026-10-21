@@ -1,10 +1,12 @@
 // This week's US economic releases (with consensus forecasts) and today's/tomorrow's earnings.
 //   node scripts/calendar.ts [--days 2]
-// Economic: the Forex Factory weekly calendar feed (time, impact, forecast, previous, actual).
+// Economic: the Forex Factory weekly calendar feed (time, impact, forecast, previous, actual), read
+// through agent-api's cached copy (the feed rate-limits the cloud machines).
 // Earnings: Finnhub's market-wide earnings calendar (needs the Finnhub network secret, or
 // FINNHUB_TOKEN locally); trimmed to companies with revenue estimates of $1B+ so it stays readable.
 // Prints JSON: { economic: [...], earnings: [...], errors: [...] }. Times are New York time.
 import { execFileSync } from "node:child_process";
+import { deskRequest } from "./desk-env.ts";
 
 function curl(url: string, headers: string[] = []): string {
   return execFileSync("curl", ["-sSL", "--fail", "--max-time", "25", "-A", "Mozilla/5.0 MarketDesk", ...headers.flatMap((h) => ["-H", h]), url], {
@@ -89,9 +91,23 @@ function actualFor(title: string, eventDate: string): { actual: string; period: 
   return actual ? { actual, period: cur.date } : undefined;
 }
 
+/**
+ * The Forex Factory weekly feed. It refuses (429) the busy cloud IPs the routines run on, so read
+ * agent-api's cached copy first (cache.ts) and only go to the feed directly if that fails.
+ */
+function weeklyCalendar(): unknown[] {
+  const cached = deskRequest("econ_calendar");
+  if (cached.status === 200) {
+    const j = JSON.parse(cached.text);
+    if (j.stale) errors.push(`economic calendar: ${j.note ?? "stale copy"} (fetched ${j.fetched_at})`);
+    if (Array.isArray(j.events) && j.events.length) return j.events;
+  } else errors.push(`economic calendar cache: HTTP ${cached.status}; trying the feed directly`);
+  return JSON.parse(curl("https://nfs.faireconomy.media/ff_calendar_thisweek.json"));
+}
+
 let economic: unknown[] = [];
 try {
-  const all = JSON.parse(curl("https://nfs.faireconomy.media/ff_calendar_thisweek.json")) as {
+  const all = weeklyCalendar() as {
     title: string;
     country: string;
     date: string;

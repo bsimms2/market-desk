@@ -12,12 +12,13 @@
 
 type Kind = "swing-morning" | "swing-evening" | "long-weekly" | "trader-morning" | "trader-afternoon" | "aggro-open" | "aggro-midday" | "aggro-late";
 
-// Window in New York local time, minutes after midnight. Targets: 7:55, 17:00, Sun 18:00; trader 10:00 and 14:30; aggressive 9:45, 12:30, 15:15.
+// Window in New York local time, minutes after midnight. Targets: 7:30, 17:00, Sun 18:00; trader 10:00 and 14:30; aggressive 9:45, 12:30, 15:15.
 // The two UTC fires land exactly one hour apart, so a window under an hour wide
 // (here: 25 min before to 35 min after the target) admits exactly one of them,
 // with room for the scheduler starting a few minutes late.
 const WINDOWS: Record<Kind, { from: number; to: number; days: number[] }> = {
-  "swing-morning": { from: 7 * 60 + 30, to: 8 * 60 + 30, days: [1, 2, 3, 4, 5] },
+  // Starts 7:30 (moved from 7:55 on 2026-10-21) so a thorough run still publishes by ~8:15.
+  "swing-morning": { from: 7 * 60 + 5, to: 8 * 60 + 5, days: [1, 2, 3, 4, 5] },
   "swing-evening": { from: 16 * 60 + 35, to: 17 * 60 + 35, days: [1, 2, 3, 4, 5] },
   "long-weekly": { from: 17 * 60 + 35, to: 18 * 60 + 35, days: [0] },
   // The paper trader: 10:00 (after the open settles) and 14:30.
