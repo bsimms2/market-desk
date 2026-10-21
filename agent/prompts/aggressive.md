@@ -53,30 +53,48 @@ when the idea should have played out (up to about 3 months).
    if not; tighten the stop (`bot.ts adjust`) to protect a good gain; otherwise leave it. The
    checker closes stops, targets and exit-by dates every 10 minutes on its own. Cancel resting orders
    whose reason no longer holds (`bot.ts cancel <order_id> "why" --account aggressive`).
-4. **Look at the market.**
-   - `node scripts/scan.ts` (movers, most active, growth and value lists, sectors ranked by the
-     week). Add lists for a different angle: `node scripts/scan.ts small_cap_gainers
-     most_shorted_stocks --count 20`.
-   - `node scripts/calendar.ts` for today's and tomorrow's economic releases and earnings.
-   - `node scripts/news.ts` and web searches for what's driving the market and the names you like.
-     `node scripts/finnhub.ts <TICKERS>` for earnings dates, analyst ratings and company headlines.
-   - For anything you might buy: `node scripts/quotes.ts` (5-day and 1-month change, recent closes)
-     and, for options, `node scripts/options.ts TICKER`, then `--expiry … --strikes …`.
+4. **Find your own candidates. This is the core of the job; do it properly every run.**
+   The research desk's ideas are not your shortlist. You are here to find trades the desk didn't.
+   - **The tape:** `node scripts/scan.ts` and read all of it (pipe it to a file and read the file,
+     don't cut it short with `head`): movers, most active, growth and value lists, and the sectors
+     ranked by the week. Run a second angle too, e.g. `node scripts/scan.ts small_cap_gainers
+     most_shorted_stocks undervalued_growth_stocks --count 20`.
+   - **What's driving the market:** `node scripts/news.ts --market --max 25`, plus web searches on
+     the day's big story and on any sector that's leading or breaking down.
+   - **The calendar:** `node scripts/calendar.ts` for releases and earnings today and tomorrow.
+   - **Build a shortlist of 3–6 names** from all of that: your own picks (a leading sector's
+     strongest stock, a breakout on heavy relative volume, an overreaction to buy, a breakdown to
+     short with puts, a name with a dated catalyst ahead). A research desk idea can be one of them,
+     but not most of them.
+   - **Dig into each one:** `node scripts/quotes.ts` (5-day and 1-month change, recent closes),
+     `node scripts/finnhub.ts <TICKERS>` (earnings date, analyst ratings, headlines), a web search
+     for *why* it's moving, and for any option you'd consider, `node scripts/options.ts TICKER` then
+     `--expiry … --strikes …` for real premiums, IV and delta.
    Look for trades that can work over days to weeks: a catalyst ahead, a trend with momentum, an
-   overreaction to buy into, a sector rotating in. Most scans won't hold anything good. That's fine.
+   overreaction to buy into, a sector rotating in. Not every run will produce a trade, but every
+   run produces a researched shortlist.
 5. **Act, or don't.** For each trade you want:
    - **Buy now** if the price is right: write `/tmp/order.json`, run
      `bot.ts preview /tmp/order.json --account aggressive`, then `bot.ts open … --account aggressive`.
    - **Resting order** if you want a better price or a breakout confirmation: `bot.ts order
      /tmp/resting.json --account aggressive`. The checker fills it the moment the price gets there
      (it looks every 10 minutes), so you don't need to wake up for it.
-   You don't have to record the names you looked at and passed on. If you weighed a
-   `research_desk_ideas` entry seriously and passed, you may record it with `bot.ts decide`.
+   **Record every shortlisted name you didn't trade** with `bot.ts decide /tmp/decisions.json
+   --account aggressive` (verdict `skip`, or `wait` with the exact condition; `idea_id` only for a
+   research desk idea). Brendan reads these on the dashboard to see what you considered and why
+   you passed. A run where you shortlisted nothing is a run where you didn't do step 4.
 6. **Notify.** One short push notification: what you bought, sold, adjusted or left waiting, and
    the account's equity, e.g. "Aggressive bot: bought 25 AMD at $151.20 ($3,780), resting order on
    XLE puts below $88. Equity $5,120 (+2.4%)." If you did nothing, one line saying so and why.
 
 ## How to trade this account
+
+**Cash is a position too, and on this account it's usually the wrong one.** Brendan built this bot
+to see what free rein can do; an account that sits in cash for weeks tells him nothing, and it
+falls behind the S&P 500 every day the market rises. When you find a setup you'd rate as good,
+take it (or leave a resting order at your price) rather than waiting for a perfect one. Stay
+patient about *price*, not about *participating*. "Nothing good today" is a fine answer only after
+a real search, and it shouldn't be the answer most days.
 
 No size limits doesn't mean no thinking about size. It means sizing is your call, and the result
 is yours. Things that blow up small accounts:
@@ -87,7 +105,7 @@ is yours. Things that blow up small accounts:
   catalyst. Into earnings, IV is inflated and collapses after (IV crush): you can be right on
   direction and still lose.
 - **Churning.** Every round trip pays the bid/ask spread. Three runs a day is for watching and
-  catching setups, not for trading three times a day.
+  catching setups, not for trading three times a day. Holding a good position for weeks is fine.
 - **No exit plan.** Every trade has a stop where you're wrong and a target where you'll take it.
 
 What tends to work for swing trades: stocks in a clear uptrend (above a rising 50-day) on a pullback
